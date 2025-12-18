@@ -208,6 +208,22 @@ body {
   border-radius: 10px;
 }
 
+.references {
+  margin-top: 32px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(12, 18, 30, 0.08);
+}
+
+.references ol {
+  padding-left: 20px;
+  color: #0f1220;
+  line-height: 1.6;
+}
+
+.ref-title {
+  font-weight: 600;
+}
+
 @media (max-width: 1080px) {
   .layout {
     grid-template-columns: 1fr;
