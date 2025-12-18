@@ -60,6 +60,8 @@ async function loadPaper() {
       const refsHtml = renderBibliographySection(bibEntries);
       paperEl.insertAdjacentHTML('beforeend', refsHtml);
     }
+
+    attachCitationHandlers(bibEntries);
   } catch (err) {
     console.error(err);
     setStatus(statusEl, 'Failed to load paper');
@@ -134,7 +136,7 @@ function normalizeLatex(body, citationMap) {
   text = text.replace(/\\appendix/g, '\\section*{Appendix}');
   text = text.replace(/\\label\{[^}]*\}/g, '');
 
-  text = linkCitations(text, citationMap, (num, slug) => `<a class="citation" href="#ref-${slug}">[${num}]</a>`);
+  text = linkCitations(text, citationMap, (num, slug, key) => `<a class="citation" data-citekey="${key}" href="#ref-${slug}">[${num}]</a>`);
 
   // Normalize theorem-like environments into plain paragraphs so LaTeX.js can render without style files.
   const theoremish = [
@@ -187,7 +189,7 @@ function renderWithMarkdown(body, citationMap) {
     throw new Error('marked is not available for rendering');
   }
 
-  const linkedBody = linkCitations(body, citationMap, (num, slug) => `[${num}](#ref-${slug})`);
+  const linkedBody = linkCitations(body, citationMap, (num, slug, key) => `<a class="citation" data-citekey="${key}" href="#ref-${slug}">[${num}]</a>`);
   const mdSource = latexToMarkdown(linkedBody);
   const { text, placeholders } = extractMathPlaceholders(mdSource);
   window.marked.setOptions({
@@ -444,4 +446,45 @@ function linkCitations(text, citationMap, formatter) {
 
 function slugifyCiteKey(key) {
   return key.toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+}
+
+function attachCitationHandlers(entries) {
+  const paperEl = document.getElementById('paper-content');
+  const sidePanel = document.getElementById('side-panel-body');
+  if (!paperEl || !sidePanel) return;
+  const byKey = new Map(entries.map(e => [e.citekey, e]));
+
+  paperEl.querySelectorAll('a.citation').forEach(anchor => {
+    anchor.addEventListener('click', evt => {
+      evt.preventDefault();
+      const key = anchor.dataset.citekey;
+      const entry = byKey.get(key);
+      if (entry) {
+        sidePanel.innerHTML = renderReferenceDetail(entry);
+        sidePanel.className = 'reference-detail';
+      } else {
+        sidePanel.innerHTML = `<p>Reference not found for ${key}.</p>`;
+        sidePanel.className = 'proof-placeholder';
+      }
+    });
+  });
+}
+
+function renderReferenceDetail(entry) {
+  const title = entry.fields.title || entry.citekey;
+  const authors = entry.fields.author ? formatAuthors(entry.fields.author) : '';
+  const venue = entry.fields.journal || entry.fields.booktitle || '';
+  const year = entry.fields.year || '';
+  const link = entry.fields.doi
+    ? `https://doi.org/${entry.fields.doi}`
+    : entry.fields.url || '';
+
+  const parts = [
+    `<span class="ref-title">${title}${year ? ` (${year})` : ''}</span>`,
+    authors ? `<div class="ref-authors">${authors}</div>` : '',
+    venue ? `<div class="ref-venue">${venue}</div>` : '',
+    link ? `<div><a href="${link}" target="_blank" rel="noopener noreferrer">${link}</a></div>` : ''
+  ].filter(Boolean);
+
+  return parts.join('');
 }

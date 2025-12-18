@@ -200,6 +200,36 @@ body {
   margin: 10px 0;
 }
 
+.reference-detail {
+  padding: 18px 22px;
+  color: #e7ecf7;
+  line-height: 1.6;
+}
+
+.reference-detail .ref-label {
+  color: #93a2b7;
+}
+
+.reference-detail .ref-title {
+  color: #fff;
+  display: block;
+  margin: 6px 0 4px;
+  font-weight: 700;
+}
+
+.reference-detail .ref-authors {
+  color: #cfd8e8;
+  margin: 6px 0;
+}
+
+.reference-detail .ref-venue {
+  color: #a7b4c8;
+}
+
+.reference-detail a {
+  color: #a5d8ff;
+}
+
 .error {
   color: #b91c1c;
   background: #fef2f2;
