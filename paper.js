@@ -475,15 +475,21 @@ function renderReferenceDetail(entry) {
   const authors = entry.fields.author ? formatAuthors(entry.fields.author) : '';
   const venue = entry.fields.journal || entry.fields.booktitle || '';
   const year = entry.fields.year || '';
-  const link = entry.fields.doi
-    ? `https://doi.org/${entry.fields.doi}`
-    : entry.fields.url || '';
+  const url = entry.fields.url || '';
+  const doiUrl = entry.fields.doi ? `https://doi.org/${entry.fields.doi}` : '';
+  const primaryLink = url || doiUrl;
+  const searchLink = `https://scholar.google.com/scholar?q=${encodeURIComponent(title)}`;
 
   const parts = [
     `<span class="ref-title">${title}${year ? ` (${year})` : ''}</span>`,
     authors ? `<div class="ref-authors">${authors}</div>` : '',
     venue ? `<div class="ref-venue">${venue}</div>` : '',
-    link ? `<div><a href="${link}" target="_blank" rel="noopener noreferrer">${link}</a></div>` : ''
+    primaryLink
+      ? `<div><a href="${primaryLink}" target="_blank" rel="noopener noreferrer">View source</a></div>`
+      : `<div><a href="${searchLink}" target="_blank" rel="noopener noreferrer">Google Scholar</a></div>`,
+    url && doiUrl && url !== doiUrl
+      ? `<div><a href="${doiUrl}" target="_blank" rel="noopener noreferrer">DOI</a></div>`
+      : ''
   ].filter(Boolean);
 
   return parts.join('');
