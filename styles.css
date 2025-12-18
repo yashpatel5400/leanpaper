@@ -215,13 +215,22 @@ body {
 }
 
 .references ol {
-  padding-left: 20px;
+  list-style: none;
+  padding-left: 0;
+  margin: 12px 0 0;
   color: #0f1220;
   line-height: 1.6;
 }
 
 .ref-title {
   font-weight: 600;
+}
+
+.ref-label {
+  display: inline-block;
+  min-width: 36px;
+  font-weight: 600;
+  color: #4b5563;
 }
 
 @media (max-width: 1080px) {

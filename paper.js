@@ -27,14 +27,17 @@ async function loadPaper() {
 
     const rawTex = await res.text();
     const body = extractBody(rawTex);
-    const bibEntries = (await bibPromise) || [];
+    const citationOrder = collectCitations(body);
+    const citationMap = makeCitationMap(citationOrder);
+    const bibEntriesAll = (await bibPromise) || [];
+    const bibEntries = filterBibliography(bibEntriesAll, citationOrder);
     const forceLatex = new URLSearchParams(window.location.search).get('renderer') === 'latexjs';
 
     let rendered = false;
 
     if (!forceLatex) {
       try {
-        const html = renderWithMarkdown(body, bibEntries);
+        const html = renderWithMarkdown(body, citationMap);
         paperEl.innerHTML = html;
         setStatus(statusEl, 'Rendered with Markdown + MathJax');
         rendered = true;
@@ -44,7 +47,7 @@ async function loadPaper() {
     }
 
     if (!rendered) {
-      const fragment = renderWithLatexJs(body, bibEntries);
+      const fragment = renderWithLatexJs(body, citationMap);
       paperEl.replaceChildren(fragment);
       setStatus(statusEl, 'Rendered with LaTeX.js');
     }
@@ -81,12 +84,12 @@ function extractBody(tex) {
   return tex;
 }
 
-function renderWithLatexJs(body) {
+function renderWithLatexJs(body, citationMap) {
   if (!window.latexjs) {
     throw new Error('LaTeX.js is not available on window.latexjs');
   }
 
-  const normalized = normalizeLatex(body, bibEntries);
+  const normalized = normalizeLatex(body, citationMap);
   const generator = new window.latexjs.HtmlGenerator({ hyphenate: false });
 
   window.latexjs.parse(normalized, { generator });
@@ -103,7 +106,7 @@ function attachLatexAssets(generator) {
   latexAssetsAttached = true;
 }
 
-function normalizeLatex(body, bibEntries) {
+function normalizeLatex(body, citationMap) {
   const macroPrelude = [
     '\\newcommand{\\aistatstitle}[1]{\\section*{#1}}',
     '\\newcommand{\\aistatsauthor}[1]{}',
@@ -131,7 +134,7 @@ function normalizeLatex(body, bibEntries) {
   text = text.replace(/\\appendix/g, '\\section*{Appendix}');
   text = text.replace(/\\label\{[^}]*\}/g, '');
 
-  text = linkCitations(text, bibEntries, (key, slug) => `<a class="citation" href="#ref-${slug}">[${key}]</a>`);
+  text = linkCitations(text, citationMap, (num, slug) => `<a class="citation" href="#ref-${slug}">[${num}]</a>`);
 
   // Normalize theorem-like environments into plain paragraphs so LaTeX.js can render without style files.
   const theoremish = [
@@ -179,12 +182,12 @@ function convertAlgorithmsToVerbatim(text) {
   });
 }
 
-function renderWithMarkdown(body, bibEntries) {
+function renderWithMarkdown(body, citationMap) {
   if (!window.marked) {
     throw new Error('marked is not available for rendering');
   }
 
-  const linkedBody = linkCitations(body, bibEntries, (key, slug) => `[${key}](#ref-${slug})`);
+  const linkedBody = linkCitations(body, citationMap, (num, slug) => `[${num}](#ref-${slug})`);
   const mdSource = latexToMarkdown(linkedBody);
   const { text, placeholders } = extractMathPlaceholders(mdSource);
   window.marked.setOptions({
@@ -301,6 +304,45 @@ function restoreMathPlaceholders(html, placeholders) {
   return placeholders.reduce((acc, math, idx) => acc.replace(`@@MATH${idx}@@`, math), html);
 }
 
+function collectCitations(text) {
+  const citeRegex = /\\cite(p|t)?\{([^}]*)\}/g;
+  const order = [];
+  const seen = new Set();
+  let match;
+
+  while ((match = citeRegex.exec(text)) !== null) {
+    const keys = match[2].split(',').map(k => k.trim()).filter(Boolean);
+    keys.forEach(key => {
+      if (!seen.has(key)) {
+        seen.add(key);
+        order.push(key);
+      }
+    });
+  }
+
+  return order;
+}
+
+function makeCitationMap(order) {
+  const map = {};
+  order.forEach((key, idx) => {
+    map[key] = idx + 1;
+  });
+  return map;
+}
+
+function filterBibliography(entries, citationOrder) {
+  if (!entries || !entries.length) return [];
+  const byKey = new Map(entries.map(e => [e.citekey, e]));
+  return citationOrder
+    .map((key, idx) => {
+      const entry = byKey.get(key);
+      if (!entry) return { citekey: key, fields: { title: key }, number: idx + 1 };
+      return { ...entry, number: idx + 1 };
+    })
+    .filter(Boolean);
+}
+
 async function fetchBibliography() {
   const res = await fetch(BIB_PATH);
   if (!res.ok) {
@@ -342,7 +384,8 @@ function renderBibliographySection(entries) {
   const items = entries
     .map(entry => {
       const slug = slugifyCiteKey(entry.citekey);
-      return `<li id="ref-${slug}">${formatBibEntry(entry)}</li>`;
+      const label = entry.number || '';
+      return `<li id="ref-${slug}"><span class="ref-label">[${label}]</span> ${formatBibEntry(entry)}</li>`;
     })
     .join('');
 
@@ -384,14 +427,18 @@ function formatAuthors(raw) {
   return `${authors.slice(0, -1).join(', ')}, & ${authors[authors.length - 1]}`;
 }
 
-function linkCitations(text, bibEntries, formatter) {
-  if (!bibEntries || !bibEntries.length) return text;
+function linkCitations(text, citationMap, formatter) {
+  if (!citationMap || Object.keys(citationMap).length === 0) return text;
   const citeRegex = /\\cite(p|t)?\{([^}]*)\}/g;
   return text.replace(citeRegex, (_, __, content) => {
     const keys = content.split(',').map(k => k.trim()).filter(Boolean);
     if (!keys.length) return '';
-    const links = keys.map(key => formatter(key, slugifyCiteKey(key)));
-    return links.join('; ');
+    const links = keys.map(key => {
+      const num = citationMap[key];
+      if (!num) return key;
+      return formatter(num, slugifyCiteKey(key), key);
+    });
+    return links.join(' ');
   });
 }
 
