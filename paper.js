@@ -1,11 +1,11 @@
-const DEFAULT_PAPER_PATH = 'core.tex';
-const DEFAULT_BIB_PATH = 'refs.bib';
+const DEFAULT_PAPER_PATH = 'contextual_robust_optimization/core.tex';
+const DEFAULT_BIB_PATH = 'contextual_robust_optimization/refs.bib';
 const PAPERS = [
   {
     id: 'cpo',
     title: 'Conformal Contextual Robust Optimization',
-    paper: 'core.tex',
-    bib: 'refs.bib',
+    paper: 'contextual_robust_optimization/core.tex',
+    bib: 'contextual_robust_optimization/refs.bib',
     repo: 'https://github.com/yashpatel5400/robbuffet',
     pdf: 'https://proceedings.mlr.press/v238/patel24a/patel24a.pdf'
   }
@@ -14,6 +14,7 @@ const LATEX_ASSET_BASE = 'https://cdn.jsdelivr.net/npm/latex.js@0.12.6/dist/';
 
 let latexAssetsAttached = false;
 let currentPaperId = null;
+let currentPaperBase = '';
 let equationNumbers = {};
 let currentTOC = [];
 const PROOF_SOURCES = {
@@ -53,6 +54,8 @@ async function loadPaper(selection) {
   const statusEl = document.getElementById('paper-status');
   const paperEl = document.getElementById('paper-content');
   const { paperPath, bibPath, title, id, repo, pdf } = selection || resolveInitialPaper();
+  const lastSlash = paperPath.lastIndexOf('/');
+  currentPaperBase = lastSlash !== -1 ? paperPath.slice(0, lastSlash) : '';
   currentPaperId = id || null;
   renderPaperList(currentPaperId);
   updateActionLinks({ repo, pdf });
@@ -766,9 +769,15 @@ function graphicsOptionsToStyle(options) {
 
 function resolveImagePath(src) {
   if (!src) return '';
-  // If already absolute or has a slash, leave it; otherwise, try images/ as a fallback.
-  if (/^(https?:)?\/\//.test(src) || src.includes('/')) return src;
-  return `images/${src}`;
+  // If already absolute, leave it.
+  if (/^(https?:)?\/\//.test(src)) return src;
+  // If contains a slash, treat as relative to the paper base.
+  if (src.includes('/')) {
+    return currentPaperBase ? `${currentPaperBase}/${src}` : src;
+  }
+  // Otherwise, assume an images/ folder within the paper directory.
+  const base = currentPaperBase ? `${currentPaperBase}/` : '';
+  return `${base}images/${src}`;
 }
 
 function convertEquations(text, eqNumbers = {}) {
