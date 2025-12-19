@@ -10,7 +10,7 @@ noncomputable def Delta {Ω 𝓧 𝓒 𝓦 E : Type*} [PseudoEMetricSpace 𝓒] 
   (w : 𝓦) (f : 𝓦 → 𝓒 → E) (U : 𝓧 → Set 𝓒) (X : Ω → 𝓧) (C : Ω → 𝓒) (ω : Ω) : ℝ≥0∞ :=
   ⨆ c' ∈ U (X ω), edist (f w (C ω)) (f w c')
 
-def GoodEvent (X : Ω → 𝓧) (C : Ω → 𝓒) (U : 𝓧 → Set 𝓒) : Set Ω :=
+def CoverEvent (X : Ω → 𝓧) (C : Ω → 𝓒) (U : 𝓧 → Set 𝓒) : Set Ω :=
   {ω | C ω ∈ U (X ω)}
 
 def BoundEvent (w : 𝓦) (f : 𝓦 → 𝓒 → E) (U : 𝓧 → Set 𝓒) (X : Ω → 𝓧) (C : Ω → 𝓒) (L : NNReal) : Set Ω :=
@@ -21,10 +21,10 @@ theorem coverage_bound
   (w : 𝓦) (f : 𝓦 → 𝓒 → E) (L : NNReal)
   (hf : LipschitzWith L (f w))
   (α : ENNReal)
-  (h_cov : volume (GoodEvent X C U) ≥ 1 - α) :
+  (h_cov : volume (CoverEvent X C U) ≥ 1 - α) :
   volume (BoundEvent w f U X C L) ≥ 1 - α := by
-  -- show GoodEvent ⊆ BoundEvent
-  have hset : GoodEvent X C U ⊆ BoundEvent w f U X C L := by
+  -- show CoverEvent ⊆ BoundEvent
+  have hset : CoverEvent X C U ⊆ BoundEvent w f U X C L := by
     intro ω hω
     -- unfold events
     -- hω : C ω ∈ U (X ω)
@@ -42,7 +42,7 @@ theorem coverage_bound
     exact mul_le_mul_right hdiam (L : ENNReal)
 
   -- now use monotonicity of measure + the given lower bound
-  have hmono : volume (GoodEvent X C U) ≤ volume (BoundEvent w f U X C L) :=
+  have hmono : volume (CoverEvent X C U) ≤ volume (BoundEvent w f U X C L) :=
     MeasureTheory.measure_mono hset
 
   exact le_trans h_cov hmono

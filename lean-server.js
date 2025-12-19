@@ -11,7 +11,10 @@ const url = require('url');
 
 const PORT = process.env.PORT || 3001;
 const ROOT = path.join(__dirname, 'contextual_robust_optimization', 'lean');
-const LEAN_PATH = process.env.LEAN_PATH || `${process.env.HOME}/.elan/bin:${process.env.PATH}`;
+const LEAN_PATH = (() => {
+  const raw = process.env.LEAN_PATH || `${process.env.HOME}/.elan/bin:${process.env.PATH}`;
+  return raw.replace(/\$PATH/g, process.env.PATH || '');
+})();
 
 function safePath(relPath) {
   const cleaned = relPath.replace(/^\/+/, '');
