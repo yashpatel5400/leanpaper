@@ -291,6 +291,8 @@ body {
   padding: 12px 14px;
   color: #e5edff;
   overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .cross-ref {
