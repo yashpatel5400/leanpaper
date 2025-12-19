@@ -118,6 +118,9 @@ body {
 }
 
 .panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 18px 22px 12px;
   border-bottom: 1px solid rgba(12, 18, 30, 0.08);
 }
@@ -132,12 +135,54 @@ body {
   color: var(--muted);
 }
 
+.panel-links {
+  display: flex;
+  gap: 8px;
+}
+
 .paper-content {
   padding: 0 24px 28px;
   overflow-y: auto;
   flex: 1 1 auto;
-  max-width: 960px;
-  margin: 0 auto;
+  width: 100%;
+}
+
+.paper-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 14px 24px 8px;
+  border-bottom: 1px solid rgba(12, 18, 30, 0.08);
+}
+
+.link-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.12);
+  color: #0f1220;
+  text-decoration: none;
+  font-weight: 600;
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+}
+
+.link-pill .icon {
+  font-size: 14px;
+  display: inline-flex;
+}
+
+.link-pill:hover {
+  background: rgba(59, 130, 246, 0.18);
+  box-shadow: 0 8px 18px rgba(59, 130, 246, 0.18);
+  transform: translateY(-1px);
+}
+
+.link-pill .icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .paper-content h1,
@@ -265,8 +310,8 @@ body {
 
 .figure-block img {
   max-width: 100%;
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(7, 11, 24, 0.18);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .figure-block figcaption {
@@ -378,7 +423,7 @@ body {
   flex: 1 1 auto;
 }
 
-.paper-list button {
+.paper-entry {
   width: 100%;
   text-align: left;
   padding: 12px 14px;
@@ -391,18 +436,18 @@ body {
   font-weight: 600;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 10px;
 }
 
-.paper-list button:hover {
+.paper-entry:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.12);
   transform: translateY(-1px);
 }
 
-.paper-list button.active {
+.paper-entry.active {
   background: linear-gradient(135deg, #3b82f6, #60a5fa);
   border-color: transparent;
   color: #0b1623;
@@ -416,11 +461,43 @@ body {
   border: 2px solid rgba(255, 255, 255, 0.35);
   display: inline-block;
   background: transparent;
+  flex-shrink: 0;
 }
 
-.paper-list button.active .bullet {
+.paper-entry.active .bullet {
   background: #0b1623;
   border-color: #0b1623;
+}
+
+.entry-icons {
+  display: inline-flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.icon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e7ecf7;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.icon-link:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.18);
+  transform: translateY(-1px);
+}
+
+.icon-link svg {
+  width: 18px;
+  height: 18px;
 }
 
 @media (max-width: 1080px) {

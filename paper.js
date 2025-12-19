@@ -5,7 +5,9 @@ const PAPERS = [
     id: 'cpo',
     title: 'Conformal Contextual Robust Optimization',
     paper: 'core.tex',
-    bib: 'refs.bib'
+    bib: 'refs.bib',
+    repo: 'https://github.com/yashpatel5400/robbuffet',
+    pdf: 'https://proceedings.mlr.press/v238/patel24a/patel24a.pdf'
   }
 ];
 const LATEX_ASSET_BASE = 'https://cdn.jsdelivr.net/npm/latex.js@0.12.6/dist/';
@@ -24,6 +26,22 @@ const PROOF_SOURCES = {
   }
 };
 
+function githubSvg() {
+  return `
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" width="16" height="16">
+      <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8a8 8 0 0 0 5.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.5 7.5 0 0 1 4.01 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"></path>
+    </svg>
+  `;
+}
+
+function paperSvg() {
+  return `
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false" width="16" height="16">
+      <path fill="currentColor" d="M3.5 1A1.5 1.5 0 0 0 2 2.5v11A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5V5.914a1.5 1.5 0 0 0-.44-1.06l-3.914-3.914A1.5 1.5 0 0 0 8.586 0H3.5ZM9 1.914 12.086 5H9.5A.5.5 0 0 1 9 4.5V1.914ZM8.5 6H4a.5.5 0 0 0 0 1h4.5a.5.5 0 0 0 0-1Zm0 2H4a.5.5 0 0 0 0 1h4.5a.5.5 0 0 0 0-1Zm0 2H4a.5.5 0 0 0 0 1h4.5a.5.5 0 0 0 0-1Z"></path>
+    </svg>
+  `;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   const initial = resolveInitialPaper();
   renderPaperList(initial.id);
@@ -33,9 +51,10 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadPaper(selection) {
   const statusEl = document.getElementById('paper-status');
   const paperEl = document.getElementById('paper-content');
-  const { paperPath, bibPath, title, id } = selection || resolveInitialPaper();
+  const { paperPath, bibPath, title, id, repo, pdf } = selection || resolveInitialPaper();
   currentPaperId = id || null;
   renderPaperList(currentPaperId);
+  updateActionLinks({ repo, pdf });
 
   setStatus(statusEl, 'Loading main paper…');
 
@@ -93,6 +112,9 @@ async function loadPaper(selection) {
 
     attachCitationHandlers(bibEntries);
     attachLemmaHandlers();
+    if (paperEl) {
+      paperEl.scrollTop = 0;
+    }
     setStatus(statusEl, '');
   } catch (err) {
     console.error(err);
@@ -235,7 +257,7 @@ function latexToMarkdown(body, meta, eqNumbers) {
   md = md.replace(/\\aistatsaddress\{([^}]*)\}/, '*$1*\n');
 
   md = md.replace(/\\begin\{abstract\}/, '### Abstract\n');
-  md = md.replace(/\\end\{abstract\}/, '\n');
+  md = md.replace(/\\end\{abstract\}/, '\n\n---\n\n');
 
   md = md.replace(/\\section\{([^}]*)\}/g, '## $1');
   md = md.replace(/\\subsection\{([^}]*)\}/g, '### $1');
@@ -311,7 +333,14 @@ function resolveInitialPaper() {
   const { paperPath, bibPath } = getAssetPaths();
   const matched = PAPERS.find(p => p.paper === paperPath) || null;
   if (matched) {
-    return { id: matched.id, title: matched.title, paperPath: matched.paper, bibPath: matched.bib };
+    return {
+      id: matched.id,
+      title: matched.title,
+      paperPath: matched.paper,
+      bibPath: matched.bib,
+      repo: matched.repo,
+      pdf: matched.pdf
+    };
   }
   return { id: null, title: paperPath, paperPath, bibPath };
 }
@@ -974,12 +1003,43 @@ function renderPaperList(activeId) {
   listEl.innerHTML = '';
   PAPERS.forEach(paper => {
     const btn = document.createElement('button');
+    btn.className = 'paper-entry';
     const bullet = document.createElement('span');
     bullet.className = 'bullet';
     const label = document.createElement('span');
     label.textContent = paper.title;
+    label.className = 'paper-title';
+
+    const icons = document.createElement('span');
+    icons.className = 'entry-icons';
+    if (paper.repo) {
+      const link = document.createElement('a');
+      link.className = 'icon-link';
+      link.href = paper.repo;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      link.innerHTML = githubSvg();
+      link.title = 'View source';
+      link.addEventListener('click', ev => ev.stopPropagation());
+      icons.appendChild(link);
+    }
+    if (paper.pdf) {
+      const link = document.createElement('a');
+      link.className = 'icon-link';
+      link.href = paper.pdf;
+      link.target = '_blank';
+      link.rel = 'noreferrer';
+      link.innerHTML = paperSvg();
+      link.title = 'View paper';
+      link.addEventListener('click', ev => ev.stopPropagation());
+      icons.appendChild(link);
+    }
+
     btn.appendChild(bullet);
     btn.appendChild(label);
+    if (icons.childElementCount) {
+      btn.appendChild(icons);
+    }
     if (paper.id === activeId) {
       btn.classList.add('active');
     }
@@ -998,7 +1058,14 @@ function selectPaper(paper) {
   }
   const newSearch = params.toString();
   history.replaceState(null, '', `${window.location.pathname}${newSearch ? `?${newSearch}` : ''}`);
-  loadPaper({ id: paper.id, title: paper.title, paperPath: paper.paper, bibPath: paper.bib });
+  loadPaper({
+    id: paper.id,
+    title: paper.title,
+    paperPath: paper.paper,
+    bibPath: paper.bib,
+    repo: paper.repo,
+    pdf: paper.pdf
+  });
 }
 
 function resetPanels() {
@@ -1017,6 +1084,17 @@ function updatePaperSubtitle(text) {
   const subtitle = document.querySelector('.paper-panel .panel-subtitle');
   if (subtitle) {
     subtitle.textContent = `Rendered from ${text}`;
+  }
+}
+
+function updateActionLinks(paper) {
+  const github = document.getElementById('action-github');
+  const pdf = document.getElementById('action-paper');
+  if (github && paper && paper.repo) {
+    github.href = paper.repo;
+  }
+  if (pdf && paper && paper.pdf) {
+    pdf.href = paper.pdf;
   }
 }
 
