@@ -272,6 +272,14 @@ body {
 .equation-block {
   text-align: center;
   margin: 18px auto;
+  position: relative;
+  scroll-margin-top: 80px;
+}
+
+.eq-number {
+  margin-left: 10px;
+  font-weight: 600;
+  color: #4b5563;
 }
 
 .lemma-block,

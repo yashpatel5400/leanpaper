@@ -12,6 +12,7 @@ const LATEX_ASSET_BASE = 'https://cdn.jsdelivr.net/npm/latex.js@0.12.6/dist/';
 
 let latexAssetsAttached = false;
 let currentPaperId = null;
+let equationNumbers = {};
 
 document.addEventListener('DOMContentLoaded', () => {
   const initial = resolveInitialPaper();
@@ -44,6 +45,7 @@ async function loadPaper(selection) {
     const rawTex = await res.text();
     const body = extractBody(rawTex);
     const meta = extractTitleAuthor(body);
+    equationNumbers = enumerateEquations(body);
     const citationOrder = collectCitations(body);
     const citationMap = makeCitationMap(citationOrder);
     const bibEntriesAll = (await bibPromise) || [];
@@ -57,7 +59,7 @@ async function loadPaper(selection) {
 
     if (!forceLatex) {
       try {
-        const html = renderWithMarkdown(body, citationMap, meta);
+        const html = renderWithMarkdown(body, citationMap, meta, equationNumbers);
         paperEl.innerHTML = html;
         rendered = true;
       } catch (mdErr) {
@@ -66,7 +68,7 @@ async function loadPaper(selection) {
     }
 
     if (!rendered) {
-      const fragment = renderWithLatexJs(body, citationMap, meta);
+      const fragment = renderWithLatexJs(body, citationMap, meta, equationNumbers);
       paperEl.replaceChildren(fragment);
     }
 
@@ -105,12 +107,12 @@ function extractBody(tex) {
   return tex;
 }
 
-function renderWithLatexJs(body, citationMap, meta) {
+function renderWithLatexJs(body, citationMap, meta, eqNumbers) {
   if (!window.latexjs) {
     throw new Error('LaTeX.js is not available on window.latexjs');
   }
 
-  const normalized = normalizeLatex(body, citationMap, meta);
+  const normalized = normalizeLatex(body, citationMap, meta, eqNumbers);
   const generator = new window.latexjs.HtmlGenerator({ hyphenate: false });
 
   window.latexjs.parse(normalized, { generator });
@@ -127,7 +129,7 @@ function attachLatexAssets(generator) {
   latexAssetsAttached = true;
 }
 
-function normalizeLatex(body, citationMap, meta) {
+function normalizeLatex(body, citationMap, meta, eqNumbers) {
   const macroPrelude = [
     '\\newcommand{\\aistatstitle}[1]{\\section*{#1}}',
     '\\newcommand{\\aistatsauthor}[1]{}',
@@ -152,17 +154,16 @@ function normalizeLatex(body, citationMap, meta) {
   text = text.replace(/\\newpage/g, '');
   text = text.replace(/\\onecolumn/g, '');
   text = text.replace(/\\appendix/g, '\\section*{Appendix}');
-  text = injectLabelAnchors(text);
   text = normalizeQuotes(text);
   text = stripLeadingIndent(text);
-  text = convertEquations(text);
+  text = injectLabelAnchors(text);
   text = wrapLemmaProof(text);
   text = applyTitleAuthor(text, meta, 'latex');
   text = convertTextStyles(text, 'latex');
   text = convertLists(text, 'latex');
 
   text = linkCitations(text, citationMap, (num, slug, key) => `<a class="citation" data-citekey="${key}" href="#ref-${slug}">[${num}]</a>`);
-  text = linkCrossReferences(text);
+  text = linkCrossReferences(text, equationNumbers);
 
   // Normalize theorem-like environments into plain paragraphs so LaTeX.js can render without style files.
   const theoremish = [
@@ -193,7 +194,7 @@ function normalizeLatex(body, citationMap, meta) {
   return `${macroPrelude}\n${text}`;
 }
 
-function renderWithMarkdown(body, citationMap, meta) {
+function renderWithMarkdown(body, citationMap, meta, eqNumbers) {
   if (!window.marked) {
     throw new Error('marked is not available for rendering');
   }
@@ -201,7 +202,7 @@ function renderWithMarkdown(body, citationMap, meta) {
   const withAnchors = injectLabelAnchors(body);
   const withCrossRefs = linkCrossReferences(withAnchors);
   const linkedBody = linkCitations(withCrossRefs, citationMap, (num, slug, key) => `<a class="citation" data-citekey="${key}" href="#ref-${slug}">[${num}]</a>`);
-  const mdSource = latexToMarkdown(linkedBody, meta);
+  const mdSource = latexToMarkdown(linkedBody, meta, eqNumbers);
   const { text, placeholders } = extractMathPlaceholders(mdSource);
   window.marked.setOptions({
     mangle: false,
@@ -212,7 +213,7 @@ function renderWithMarkdown(body, citationMap, meta) {
   return restoreMathPlaceholders(html, placeholders);
 }
 
-function latexToMarkdown(body, meta) {
+function latexToMarkdown(body, meta, eqNumbers) {
   let md = normalizeQuotes(body.replace(/^%.*$/gm, ''));
   md = applyTitleAuthor(md, meta, 'markdown');
 
@@ -229,9 +230,9 @@ function latexToMarkdown(body, meta) {
   md = md.replace(/\\subsection\{([^}]*)\}/g, '### $1');
   md = md.replace(/\\subsubsection\{([^}]*)\}/g, '#### $1');
 
-  md = injectLabelAnchors(md);
   md = stripLeadingIndent(md);
-  md = convertEquations(md);
+  md = convertEquations(md, eqNumbers);
+  md = injectLabelAnchors(md);
   md = wrapLemmaProof(md);
   md = md.replace(/\\textproc\{([^}]*)\}/g, '`$1`');
   md = md.replace(/\\mathds\{([^}]*)\}/g, (_, symbol) => `\\mathbb{${symbol}}`);
@@ -504,14 +505,75 @@ function injectLabelAnchors(text) {
   return text.replace(/\\label\{([^}]*)\}/g, (_, label) => `<span id="cref-${label}"></span>`);
 }
 
-function linkCrossReferences(text) {
+function linkCrossReferences(text, eqNumbers = {}) {
   const refRegex = /\\[cC]ref\{([^}]*)\}/g;
   return text.replace(refRegex, (_, content) => {
     const labels = content.split(',').map(l => l.trim()).filter(Boolean);
     if (!labels.length) return '';
-    const links = labels.map(label => `<a class="cross-ref" href="#cref-${label}">[${label}]</a>`);
+    const links = labels.map(label => {
+      const text = formatRefLabel(label, eqNumbers);
+      return `<a class="cross-ref" href="#cref-${label}">${text}</a>`;
+    });
     return links.join(' ');
   });
+}
+
+function formatRefLabel(label, eqNumbers = {}) {
+  if (eqNumbers[label]) {
+    const parts = label.split(':');
+    const remainder = parts.slice(1).join(':');
+    const name = humanizeLabel(remainder);
+    return `Equation ${eqNumbers[label]}${name ? `: ${name}` : ''}`;
+  }
+
+  const parts = label.split(':');
+  const prefix = parts[0] || '';
+  const remainder = parts.slice(1).join(':');
+
+  if (prefix === 'lemma') {
+    return `Lemma: ${humanizeLabel(remainder)}`;
+  }
+  if (prefix === 'eqn') {
+    return `Equation: ${humanizeLabel(remainder)}`;
+  }
+  if (prefix === 'theorem') {
+    return `Theorem: ${humanizeLabel(remainder)}`;
+  }
+  if (prefix === 'assumption') {
+    return `Assumption: ${humanizeLabel(remainder)}`;
+  }
+  if (prefix === 'corollary') {
+    return `Corollary: ${humanizeLabel(remainder)}`;
+  }
+  if (prefix === 'conjecture') {
+    return `Conjecture: ${humanizeLabel(remainder)}`;
+  }
+
+  return `[${label}]`;
+}
+
+function humanizeLabel(text) {
+  if (!text) return '';
+  const special = {
+    pgd: 'PGD',
+    cpo: 'CPO'
+  };
+  return text
+    .split(/[_\-]+/)
+    .filter(Boolean)
+    .map(word => {
+      const lower = word.toLowerCase();
+      if (special[lower]) return special[lower];
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+}
+
+function formatEnvHeading(kind, labelId) {
+  const parts = labelId.split(':');
+  const maybeName = parts.slice(1).join(':') || parts[0];
+  const nice = humanizeLabel(maybeName);
+  return `${kind}: ${nice}`;
 }
 
 function normalizeQuotes(text) {
@@ -520,8 +582,9 @@ function normalizeQuotes(text) {
 }
 
 function convertFigures(text, mode) {
-  return text.replace(/\\begin\{figure\*?\}([\s\S]*?)\\end\{figure\*?\}/g, fig => {
-    const caption = (fig.match(/\\caption\{([^}]*)\}/) || [])[1];
+  const figRegex = /\\begin\{figure\*?\}[\s\S]*?\\end\{figure\*?\}/g;
+  return text.replace(figRegex, fig => {
+    const caption = (fig.match(/\\caption\{([\s\S]*?)\}/) || [])[1] || '';
     const graphics = fig.match(/\\includegraphics(?:\[(.*?)\])?\{([^}]*)\}/);
     const options = graphics ? graphics[1] : '';
     const src = graphics ? resolveImagePath(graphics[2]) : '';
@@ -529,15 +592,12 @@ function convertFigures(text, mode) {
     const anchor = (fig.match(/<span id="[^"]*"><\/span>/) || [])[0] || '';
 
     if (!src) {
-      const text = caption || 'Figure';
-      return mode === 'markdown' ? `${anchor}> ${text}\n` : `${anchor}\\begin{quote}${text}\\end{quote}`;
+      const textContent = caption || 'Figure';
+      return mode === 'markdown' ? `${anchor}> ${textContent}\n` : `${anchor}\\begin{quote}${textContent}\\end{quote}`;
     }
 
-    if (mode === 'markdown') {
-      return `\n${anchor}<figure class="figure-block"><img src="${src}" alt="${caption || 'Figure'}"${style ? ` style="${style}"` : ''}>${caption ? `<figcaption>${caption}</figcaption>` : ''}</figure>\n`;
-    }
-
-    return `${anchor}<figure class="figure-block"><img src="${src}" alt="${caption || 'Figure'}"${style ? ` style="${style}"` : ''}>${caption ? `<figcaption>${caption}</figcaption>` : ''}</figure>`;
+    const figureHtml = `<figure class="figure-block"><img src="${src}" alt="${caption || 'Figure'}"${style ? ` style="${style}"` : ''}>${caption ? `<figcaption>${caption}</figcaption>` : ''}</figure>`;
+    return mode === 'markdown' ? `\n${anchor}${figureHtml}\n` : `${anchor}${figureHtml}`;
   });
 }
 
@@ -579,15 +639,37 @@ function resolveImagePath(src) {
   return `images/${src}`;
 }
 
-function convertEquations(text) {
-  const wrap = inner => `\n<div class="equation-block">$$\n${inner.trim()}\n$$</div>\n`;
+function convertEquations(text, eqNumbers = {}) {
+  const clean = expr =>
+    expr
+      .trim()
+      .replace(/^\$\$/g, '')
+      .replace(/\$\$$/g, '')
+      .replace(/^\\\[/g, '')
+      .replace(/\\\]$/g, '');
+
+  const wrap = (inner, label) => {
+    const idAttr = label ? ` id="cref-${label}"` : '';
+    const num = label && eqNumbers[label] ? eqNumbers[label] : null;
+    const numberHtml = num ? `<span class="eq-number">(${num})</span>` : '';
+    return `\n<div class="equation-block"${idAttr}>$$\n${clean(inner)}\n$$${numberHtml}</div>\n`;
+  };
   const replaceBlock = (_match, body) => wrap(body);
   const replaceAlign = (_match, body) => wrap(body);
 
   return text
-    .replace(/[ \t]*\\begin\{equation\*?\}([\s\S]*?)\\end\{equation\*?\}[ \t]*/g, replaceBlock)
-    .replace(/[ \t]*\\begin\{gather\*?\}([\s\S]*?)\\end\{gather\*?\}[ \t]*/g, replaceBlock)
-    .replace(/[ \t]*\\begin\{align\*?\}([\s\S]*?)\\end\{align\*?\}[ \t]*/g, replaceAlign);
+    .replace(/[ \t]*\\begin\{equation\*?\}([\s\S]*?)\\end\{equation\*?\}[ \t]*/g, (m, body) => {
+      const { cleaned, label } = stripLabel(body);
+      return wrap(cleaned, label);
+    })
+    .replace(/[ \t]*\\begin\{gather\*?\}([\s\S]*?)\\end\{gather\*?\}[ \t]*/g, (m, body) => {
+      const { cleaned, label } = stripLabel(body);
+      return wrap(cleaned, label);
+    })
+    .replace(/[ \t]*\\begin\{align\*?\}([\s\S]*?)\\end\{align\*?\}[ \t]*/g, (m, body) => {
+      const { cleaned, label } = stripLabel(body);
+      return wrap(cleaned, label);
+    });
 }
 
 function stripLeadingIndent(text) {
@@ -596,7 +678,8 @@ function stripLeadingIndent(text) {
 
 function replaceAlgorithms(text, mode) {
   return text.replace(/\\begin\{algorithm\}[\s\S]*?\\end\{algorithm\}/g, block => {
-    const caption = (block.match(/\\caption\{([^}]*)\}/) || [])[1] || '';
+    const captionRaw = (block.match(/\\caption\{([\s\S]*?)\}/) || [])[1] || '';
+    const caption = captionRaw.replace(/\\label\{[^}]*\}/, '').replace(/[`]/g, '').trim();
     const label = (block.match(/\\label\{([^}]*)\}/) || [])[1] || '';
     const body = block
       .replace(/\\begin\{algorithmic\}\[?\d*\]?/g, '')
@@ -606,18 +689,11 @@ function replaceAlgorithms(text, mode) {
 
     const steps = parseAlgorithmLines(body);
 
-    if (mode === 'markdown') {
-      const items = steps.map(step => `<li>${step}</li>`).join('');
-      return `
-<div class="algorithm-block"${label ? ` id="cref-${label}"` : ''}>
-  ${caption ? `<div class="algo-caption">${caption}</div>` : ''}
-  <ol>${items}</ol>
-</div>
-`;
-    }
+    if (!steps.length && !caption) return '';
 
     const items = steps.map(step => `<li>${step}</li>`).join('');
-    return `<div class="algorithm-block"${label ? ` id="cref-${label}"` : ''}>${caption ? `<div class="algo-caption">${caption}</div>` : ''}<ol>${items}</ol></div>`;
+    const title = caption ? `Algorithm: ${caption}` : 'Algorithm';
+    return `<div class="algorithm-block"${label ? ` id="cref-${label}"` : ''}>${caption ? `<div class="algo-caption">${title}</div>` : ''}<ol>${items}</ol></div>`;
   });
 }
 
@@ -646,13 +722,18 @@ function parseAlgorithmLines(body) {
   const lines = body
     .split('\n')
     .map(line => line.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter(line => {
+      const normalized = line.replace(/[^a-zA-Z]/g, '').toLowerCase();
+      return normalized !== 'algorithm';
+    });
 
   let forDepth = 0;
   const output = [];
 
   lines.forEach(line => {
     const lower = line.toLowerCase();
+    if (lower === 'algorithm') return;
     const isEndFor = /^\\endfor\b/.test(lower) || /^\\end\{?for\}?/.test(lower);
     if (isEndFor) {
       forDepth = Math.max(0, forDepth - 1);
@@ -672,7 +753,10 @@ function parseAlgorithmLines(body) {
     }
   });
 
-  return output;
+  return output.filter(step => {
+    const plain = step.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, '').trim().toLowerCase();
+    return plain && plain !== 'algorithm';
+  });
 }
 
 function transformAlgorithmLine(line) {
@@ -681,6 +765,9 @@ function transformAlgorithmLine(line) {
     const cmd = cmdMatch[1];
     const braceContent = cmdMatch[3] ? cmdMatch[3].trim() : '';
     const rest = cmdMatch[4].trim();
+    if (cmd.toLowerCase() === 'procedure') {
+      return '';
+    }
     const content = braceContent || rest;
     const cmdLower = cmd.toLowerCase();
     if (cmdLower === 'textbf') {
@@ -726,10 +813,19 @@ function wrapLemmaProof(text) {
     const regex = new RegExp(`\\\\begin\\{${env}\\}([\\s\\S]*?)\\\\end\\{${env}\\}`, 'g');
     return txt =>
       txt.replace(regex, (_m, body) => {
-        const inner = body.trim();
-        const heading = `<div class="env-heading">${title}</div>`;
+        let inner = body.trim();
+        const labelMatch = inner.match(/<span id="cref-([^"]+)"><\/span>/);
+        const labelId = labelMatch ? labelMatch[1] : null;
+        if (labelId) {
+          inner = inner.replace(/<span id="cref-[^"]+"><\/span>/g, '');
+        }
+        const headingText = labelId
+          ? formatEnvHeading(title.replace('.', ''), labelId)
+          : title;
+        const anchor = labelId ? `<span id="cref-${labelId}"></span>` : '';
+        const heading = `<div class="env-heading">${headingText}</div>`;
         const content = `<div class="env-body">${inner}</div>`;
-        return `<div class="${className}">${heading}${content}</div>`;
+        return `${anchor}<div class="${className}">${heading}${content}</div>`;
       });
   };
 
@@ -737,6 +833,28 @@ function wrapLemmaProof(text) {
   out = wrapEnv('lemma', 'Lemma.', 'lemma-block')(out);
   out = wrapEnv('proof', 'Proof.', 'proof-block')(out);
   return out;
+}
+
+function stripLabel(body) {
+  const match = body.match(/\\label\{([^}]*)\}/);
+  if (!match) return { cleaned: body, label: null };
+  const cleaned = body.replace(/\\label\{[^}]*\}/, '').trim();
+  return { cleaned, label: match[1] };
+}
+
+function enumerateEquations(text) {
+  const regex = /\\begin\{(?:equation\*?|gather\*?|align\*?)\}[\s\S]*?\\label\{([^}]*)\}[\s\S]*?\\end\{(?:equation\*?|gather\*?|align\*?)\}/g;
+  let count = 0;
+  const map = {};
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const label = match[1];
+    if (!map[label]) {
+      count += 1;
+      map[label] = count;
+    }
+  }
+  return map;
 }
 
 function extractTitleAuthor(text) {
