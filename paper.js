@@ -20,6 +20,7 @@ let currentPaperId = null;
 let currentPaperBase = '';
 let equationNumbers = {};
 let currentTOC = [];
+let currentLeanPath = null;
 const PROOF_SOURCES = {
   'lemma:coverage_bound': {
     path: 'contextual_robust_optimization/lean/ContextualRobustOpt/Subopt.lean',
@@ -54,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderPaperList(initial.id);
   loadPaper(initial);
   setupResizers();
+  attachCompileHandler();
 });
 
 async function loadPaper(selection) {
@@ -140,6 +142,18 @@ function setStatus(el, text) {
   if (el) {
     el.textContent = text;
   }
+}
+
+function setLeanHeading(text) {
+  const heading = document.getElementById('lean-heading');
+  if (heading) heading.textContent = text;
+}
+
+function setLeanEditorContent(code, readOnly = false) {
+  const editor = document.getElementById('lean-editor');
+  if (!editor) return;
+  editor.value = code || '';
+  editor.readOnly = readOnly;
 }
 
 function extractBody(tex) {
@@ -535,6 +549,8 @@ function attachCitationHandlers(entries) {
 function attachLemmaHandlers() {
   const paperEl = document.getElementById('paper-content');
   const sidePanel = document.getElementById('side-panel-body');
+  const headingEl = document.getElementById('lean-heading');
+  const editor = document.getElementById('lean-editor');
   if (!paperEl || !sidePanel) return;
 
   paperEl.querySelectorAll('.lemma-block').forEach(block => {
@@ -543,23 +559,27 @@ function attachLemmaHandlers() {
     block.style.cursor = 'pointer';
     block.addEventListener('click', async () => {
       sidePanel.className = 'reference-detail';
-      sidePanel.innerHTML = '<p class="muted">Loading Lean proof…</p>';
+      if (headingEl) headingEl.textContent = 'Loading Lean code…';
+      if (editor) {
+        editor.value = '';
+        editor.readOnly = true;
+      }
       setLeanOutput('Checking with Lean server…', 'pending');
       try {
-        const proofHtml = await loadLeanProof(label);
-        sidePanel.innerHTML = proofHtml;
-        const source = PROOF_SOURCES[label];
-        if (source && source.path) {
-          const leanFile =
-            source.leanPath ||
-            source.path.replace(/^contextual_robust_optimization\/lean\//, '');
-          runLeanCheck(leanFile);
-        } else {
-          setLeanOutput('No Lean source configured for this item.', 'error');
+        const { code, heading, leanPath } = await loadLeanProof(label);
+        currentLeanPath = leanPath || null;
+        if (headingEl) headingEl.textContent = heading;
+        if (editor) {
+          editor.value = code || '';
+          editor.readOnly = false;
         }
+        setLeanOutput('Ready to compile.', '');
       } catch (err) {
-        sidePanel.innerHTML = `<p>Could not load Lean proof for ${label}: ${err.message}</p>`;
-        sidePanel.className = 'proof-placeholder';
+        if (headingEl) headingEl.textContent = `Could not load Lean code for ${label}`;
+        if (editor) {
+          editor.value = `-- error: ${err.message}`;
+          editor.readOnly = true;
+        }
         setLeanOutput(`Lean server unavailable: ${err.message}`, 'error');
       }
     });
@@ -577,21 +597,22 @@ async function loadLeanProof(label) {
     throw new Error(`Failed to fetch ${source.path} (${res.status})`);
   }
   const text = await res.text();
-  // Show the whole file so definitions/context are visible; anchor is kept for potential future highlighting.
   const snippet = text;
-
-  return `
-    <div class="reference-detail">
-      <div class="env-heading">${formatRefLabel(label)}</div>
-      <pre><code class="lean">${escapeHtml(snippet)}</code></pre>
-    </div>
-  `;
+  return { code: snippet, heading: formatRefLabel(label), leanPath: source.leanPath || source.path };
 }
 
-async function runLeanCheck(path) {
+async function runLeanCheck(path, code) {
   setLeanOutput('Checking with Lean server…', 'pending');
   try {
-    const res = await fetch(`${LEAN_SERVER_ENDPOINT}?file=${encodeURIComponent(path)}`);
+    const url = `${LEAN_SERVER_ENDPOINT}?file=${encodeURIComponent(path)}`;
+    const options = code
+      ? {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file: path, code })
+        }
+      : undefined;
+    const res = await fetch(url, options);
     if (!res.ok) {
       throw new Error(`server returned ${res.status}`);
     }
@@ -627,6 +648,21 @@ function setLeanOutput(text, state = '') {
   if (!output) return;
   output.textContent = text;
   output.className = `lean-output${state ? ` ${state}` : ''}`;
+}
+
+function attachCompileHandler() {
+  const btn = document.getElementById('lean-compile');
+  const editor = document.getElementById('lean-editor');
+  if (!btn || !editor) return;
+  btn.addEventListener('click', () => {
+    const code = editor.value;
+    const path = currentLeanPath;
+    if (!code || !path) {
+      setLeanOutput('No Lean source loaded.', 'error');
+      return;
+    }
+    runLeanCheck(path, code);
+  });
 }
 
 function setupResizers() {
@@ -1337,13 +1373,21 @@ function selectPaper(paper) {
 function resetPanels() {
   const paperEl = document.getElementById('paper-content');
   const sidePanel = document.getElementById('side-panel-body');
+  const headingEl = document.getElementById('lean-heading');
+  const editor = document.getElementById('lean-editor');
   const leanOutput = document.getElementById('lean-output');
   if (paperEl) {
     paperEl.innerHTML = '<p class="muted">Loading main paper…</p>';
   }
   if (sidePanel) {
-    sidePanel.innerHTML = '';
-    sidePanel.className = 'proof-placeholder';
+    sidePanel.className = 'reference-detail';
+  }
+  if (headingEl) {
+    headingEl.textContent = 'Click a lemma/theorem box to load Lean code';
+  }
+  if (editor) {
+    editor.value = '';
+    editor.readOnly = true;
   }
   if (leanOutput) {
     leanOutput.textContent = 'Lean server output will appear here.';

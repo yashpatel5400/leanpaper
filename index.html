@@ -92,9 +92,13 @@
         </div>
         <div class="proof-split">
           <div class="proof-section">
-            <div class="subheading">Lean code</div>
-            <div id="side-panel-body" class="proof-placeholder">
-              <p>Click a citation or lemma/theorem box to view its Lean formalization here.</p>
+            <div class="proof-toolbar">
+              <div class="subheading">Lean code</div>
+              <button id="lean-compile" class="compile-btn" type="button">Compile</button>
+            </div>
+            <div id="side-panel-body" class="reference-detail">
+              <div id="lean-heading" class="env-heading">Click a lemma/theorem box to load Lean code</div>
+              <textarea id="lean-editor" class="lean-editor" spellcheck="false" placeholder="Lean code will appear here" readonly></textarea>
             </div>
           </div>
           <div id="divider-proof-split" class="divider divider-horizontal"></div>

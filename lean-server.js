@@ -8,11 +8,16 @@ const http = require('http');
 const { execFile } = require('child_process');
 const path = require('path');
 const url = require('url');
+const fs = require('fs');
+const os = require('os');
 
 const PORT = process.env.PORT || 3001;
 const ROOT = path.join(__dirname, 'contextual_robust_optimization', 'lean');
+
+const ELAN_HOME = process.env.ELAN_HOME || `${process.env.HOME}/.elan`;
+const LAKE_BIN = process.env.LAKE_BIN || path.join(ELAN_HOME, 'bin', 'lake');
 const LEAN_PATH = (() => {
-  const raw = process.env.LEAN_PATH || `${process.env.HOME}/.elan/bin:${process.env.PATH}`;
+  const raw = process.env.LEAN_PATH || `${path.join(ELAN_HOME, 'bin')}:${process.env.PATH}`;
   return raw.replace(/\$PATH/g, process.env.PATH || '');
 })();
 
@@ -33,9 +38,9 @@ function sendJson(res, status, data) {
   res.end(JSON.stringify(data));
 }
 
-function handleCheck(req, res) {
+function handleCheck(req, res, payload) {
   const parsed = url.parse(req.url, true);
-  const file = parsed.query.file;
+  const file = payload?.file || parsed.query.file;
   if (!file) {
     return sendJson(res, 400, { error: 'Missing file query parameter' });
   }
@@ -51,10 +56,17 @@ function handleCheck(req, res) {
   if (!relPath || relPath.startsWith('..')) {
     return sendJson(res, 400, { error: 'File must be inside Lean project root' });
   }
-  const cmd = 'lake';
+  const cmd = LAKE_BIN;
   // Lean 4: use --json to get structured output; bare lean will typecheck the file.
   const args = ['env', 'lean', '--json', relPath];
   const start = Date.now();
+  let tmpFile = null;
+
+  if (payload?.code) {
+    tmpFile = path.join(os.tmpdir(), `lean-snippet-${Date.now()}-${Math.random().toString(16).slice(2)}.lean`);
+    fs.writeFileSync(tmpFile, payload.code, 'utf8');
+    args[args.length - 1] = tmpFile;
+  }
 
   execFile(
     cmd,
@@ -66,6 +78,13 @@ function handleCheck(req, res) {
     },
     (error, stdout, stderr) => {
       const durationMs = Date.now() - start;
+      if (tmpFile) {
+        try {
+          fs.unlinkSync(tmpFile);
+        } catch (_) {
+          /* ignore */
+        }
+      }
       if (error) {
         return sendJson(res, 500, {
           error: error.message,
@@ -81,9 +100,33 @@ function handleCheck(req, res) {
 }
 
 const server = http.createServer((req, res) => {
-  const parsed = url.parse(req.url);
+  const parsed = url.parse(req.url, true);
   if (parsed.pathname === '/lean/check') {
-    return handleCheck(req, res);
+    const isPost = req.method && req.method.toUpperCase() === 'POST';
+    if (!isPost) {
+      return handleCheck(req, res);
+    }
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+      if (body.length > 5 * 1024 * 1024) {
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      try {
+        const payload = JSON.parse(body || '{}');
+        const file = payload.file;
+        const code = payload.code;
+        if (!file || typeof file !== 'string') {
+          return sendJson(res, 400, { error: 'Missing file in payload' });
+        }
+        handleCheck(req, res, { file, code });
+      } catch (err) {
+        return sendJson(res, 400, { error: 'Invalid JSON payload' });
+      }
+    });
+    return;
   }
   if (parsed.pathname === '/lean/health') {
     return sendJson(res, 200, { status: 'ok' });
