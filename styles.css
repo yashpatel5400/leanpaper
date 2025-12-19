@@ -333,6 +333,10 @@ body {
   color: #bfdbfe;
 }
 
+.lean-output.success {
+  color: #c4f2c0;
+}
+
 .lean-output.error {
   color: #fca5a5;
 }

@@ -11,7 +11,9 @@ const PAPERS = [
   }
 ];
 const LATEX_ASSET_BASE = 'https://cdn.jsdelivr.net/npm/latex.js@0.12.6/dist/';
-const LEAN_SERVER_ENDPOINT = '/lean/check';
+const LEAN_SERVER_ENDPOINT =
+  (typeof window !== 'undefined' && window.LEAN_SERVER_ENDPOINT) ||
+  'http://localhost:3001/lean/check';
 
 let latexAssetsAttached = false;
 let currentPaperId = null;
@@ -21,10 +23,12 @@ let currentTOC = [];
 const PROOF_SOURCES = {
   'lemma:coverage_bound': {
     path: 'contextual_robust_optimization/lean/ContextualRobustOpt/Subopt.lean',
+    leanPath: 'ContextualRobustOpt/Subopt.lean',
     anchor: 'theorem coverage_bound'
   },
   'lemma:cpo_convergence': {
     path: 'contextual_robust_optimization/lean/ContextualRobustOpt/Convergence.lean',
+    leanPath: 'ContextualRobustOpt/Convergence.lean',
     anchor: 'theorem pgd_convergence'
   }
 };
@@ -545,7 +549,10 @@ function attachLemmaHandlers() {
         sidePanel.innerHTML = proofHtml;
         const source = PROOF_SOURCES[label];
         if (source && source.path) {
-          runLeanCheck(source.path);
+          const leanFile =
+            source.leanPath ||
+            source.path.replace(/^contextual_robust_optimization\/lean\//, '');
+          runLeanCheck(leanFile);
         } else {
           setLeanOutput('No Lean source configured for this item.', 'error');
         }
@@ -591,14 +598,24 @@ async function runLeanCheck(path) {
     let message = text;
     try {
       const parsed = JSON.parse(text);
-      message = parsed.stdout || parsed.output || text;
-      if (parsed.stderr) {
-        message += `\n\nstderr:\n${parsed.stderr}`;
+      const base = parsed.stdout || parsed.output || '';
+      const err = parsed.stderr || '';
+      const duration = parsed.durationMs ? `\n\nDuration: ${parsed.durationMs} ms` : '';
+      if (base.trim()) {
+        message = base;
+      } else if (err.trim()) {
+        message = err;
+      } else {
+        message = 'All goals completed!';
       }
+      message += duration;
     } catch (_) {
       // not JSON
     }
-    setLeanOutput(message || 'Lean check completed.', 'success');
+    if (!message.trim()) {
+      message = 'All goals completed!';
+    }
+    setLeanOutput(message, 'success');
   } catch (err) {
     setLeanOutput(`Lean server unavailable: ${err.message}`, 'error');
   }

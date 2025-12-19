@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "http-server -p 8000",
     "start": "npm run dev",
-    "build": "echo \"Static site - nothing to build\""
+    "build": "echo \"Static site - nothing to build\"",
+    "lean:server": "node lean-server.js"
   },
   "dependencies": {
     "latex.js": "0.12.6",
