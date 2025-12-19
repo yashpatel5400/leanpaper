@@ -11,6 +11,7 @@ const url = require('url');
 
 const PORT = process.env.PORT || 3001;
 const ROOT = path.join(__dirname, 'contextual_robust_optimization', 'lean');
+const LEAN_PATH = process.env.LEAN_PATH || `${process.env.HOME}/.elan/bin:${process.env.PATH}`;
 
 function safePath(relPath) {
   const cleaned = relPath.replace(/^\/+/, '');
@@ -55,7 +56,11 @@ function handleCheck(req, res) {
   execFile(
     cmd,
     args,
-    { cwd: ROOT, env: { ...process.env, LEAN_ABORT_ON_PANIC: 'false' }, maxBuffer: 10 * 1024 * 1024 },
+    {
+      cwd: ROOT,
+      env: { ...process.env, PATH: LEAN_PATH, LEAN_ABORT_ON_PANIC: 'false' },
+      maxBuffer: 10 * 1024 * 1024
+    },
     (error, stdout, stderr) => {
       const durationMs = Date.now() - start;
       if (error) {

@@ -16,8 +16,8 @@
   --col-paper: 760px;
   --col-proof: 400px;
   --divider: 6px;
-  --proof-top: 220px;
-  --proof-bottom: 220px;
+  --proof-top: 75%;
+  --proof-bottom: 25%;
   --divider-row: 6px;
 }
 

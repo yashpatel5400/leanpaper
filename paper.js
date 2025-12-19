@@ -734,8 +734,8 @@ function setupProofResizer() {
     const sections = split.querySelectorAll('.proof-section');
     let top = sections[0] ? sections[0].getBoundingClientRect().height : 0;
     let bottom = sections[1] ? sections[1].getBoundingClientRect().height : 0;
-    if (!top || Number.isNaN(top)) top = split.clientHeight / 2;
-    if (!bottom || Number.isNaN(bottom)) bottom = split.clientHeight / 2;
+    if (!top || Number.isNaN(top)) top = split.clientHeight * 0.75;
+    if (!bottom || Number.isNaN(bottom)) bottom = split.clientHeight * 0.25;
     return { top, bottom };
   }
   function setState({ top, bottom }) {
