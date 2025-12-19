@@ -269,6 +269,33 @@ body {
   max-width: 100%;
 }
 
+.equation-block {
+  text-align: center;
+  margin: 18px auto;
+}
+
+.lemma-block,
+.proof-block {
+  border: 1px solid rgba(12, 18, 30, 0.1);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 18px 0;
+  background: #eef2ff;
+}
+
+.proof-block {
+  background: #f0f9ff;
+}
+
+.env-heading {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.env-body {
+  line-height: 1.6;
+}
+
 .algorithm-block {
   margin: 18px 0;
   padding: 12px 14px;

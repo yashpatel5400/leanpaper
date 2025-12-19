@@ -154,8 +154,12 @@ function normalizeLatex(body, citationMap, meta) {
   text = text.replace(/\\appendix/g, '\\section*{Appendix}');
   text = injectLabelAnchors(text);
   text = normalizeQuotes(text);
+  text = stripLeadingIndent(text);
+  text = convertEquations(text);
+  text = wrapLemmaProof(text);
   text = applyTitleAuthor(text, meta, 'latex');
   text = convertTextStyles(text, 'latex');
+  text = convertLists(text, 'latex');
 
   text = linkCitations(text, citationMap, (num, slug, key) => `<a class="citation" data-citekey="${key}" href="#ref-${slug}">[${num}]</a>`);
   text = linkCrossReferences(text);
@@ -225,15 +229,10 @@ function latexToMarkdown(body, meta) {
   md = md.replace(/\\subsection\{([^}]*)\}/g, '### $1');
   md = md.replace(/\\subsubsection\{([^}]*)\}/g, '#### $1');
 
-  md = md.replace(/\\begin\{itemize\}/g, '');
-  md = md.replace(/\\end\{itemize\}/g, '');
-  md = md.replace(/\\item\s*/g, '- ');
-
-  md = md.replace(/\\begin\{equation\*?\}([\s\S]*?)\\end\{equation\*?\}/g, (_, eq) => `$$\n${eq.trim()}\n$$`);
-  md = md.replace(/\\begin\{gather\*?\}([\s\S]*?)\\end\{gather\*?\}/g, (_, eq) => `$$\n${eq.trim()}\n$$`);
-  md = md.replace(/\\begin\{align\*?\}([\s\S]*?)\\end\{align\*?\}/g, (_, eq) => `\\[\n${eq.trim()}\n\\]`);
-
   md = injectLabelAnchors(md);
+  md = stripLeadingIndent(md);
+  md = convertEquations(md);
+  md = wrapLemmaProof(md);
   md = md.replace(/\\textproc\{([^}]*)\}/g, '`$1`');
   md = md.replace(/\\mathds\{([^}]*)\}/g, (_, symbol) => `\\mathbb{${symbol}}`);
   md = md.replace(/\\cite(p|t)?\{([^}]*)\}/g, '[$2]');
@@ -241,6 +240,7 @@ function latexToMarkdown(body, meta) {
 
   md = replaceAlgorithms(md, 'markdown');
 
+  md = convertLists(md, 'markdown');
   md = convertFigures(md, 'markdown');
   md = convertStandaloneGraphics(md, 'markdown');
 
@@ -579,6 +579,21 @@ function resolveImagePath(src) {
   return `images/${src}`;
 }
 
+function convertEquations(text) {
+  const wrap = inner => `\n<div class="equation-block">$$\n${inner.trim()}\n$$</div>\n`;
+  const replaceBlock = (_match, body) => wrap(body);
+  const replaceAlign = (_match, body) => wrap(body);
+
+  return text
+    .replace(/[ \t]*\\begin\{equation\*?\}([\s\S]*?)\\end\{equation\*?\}[ \t]*/g, replaceBlock)
+    .replace(/[ \t]*\\begin\{gather\*?\}([\s\S]*?)\\end\{gather\*?\}[ \t]*/g, replaceBlock)
+    .replace(/[ \t]*\\begin\{align\*?\}([\s\S]*?)\\end\{align\*?\}[ \t]*/g, replaceAlign);
+}
+
+function stripLeadingIndent(text) {
+  return text.replace(/^[ \t]+/gm, '');
+}
+
 function replaceAlgorithms(text, mode) {
   return text.replace(/\\begin\{algorithm\}[\s\S]*?\\end\{algorithm\}/g, block => {
     const caption = (block.match(/\\caption\{([^}]*)\}/) || [])[1] || '';
@@ -604,6 +619,27 @@ function replaceAlgorithms(text, mode) {
     const items = steps.map(step => `<li>${step}</li>`).join('');
     return `<div class="algorithm-block"${label ? ` id="cref-${label}"` : ''}>${caption ? `<div class="algo-caption">${caption}</div>` : ''}<ol>${items}</ol></div>`;
   });
+}
+
+function convertLists(text, mode) {
+  const replacer = (_match, body) => {
+    const items = body
+      .split(/\\item/)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(item => {
+        const styled = convertTextStyles(item, mode === 'markdown' ? 'markdown' : 'latex');
+        return `<li>${styled}</li>`;
+      })
+      .join('');
+
+    const list = `<ul>${items}</ul>`;
+    return mode === 'markdown' ? `\n${list}\n` : list;
+  };
+
+  return text
+    .replace(/\\begin\{itemize\}([\s\S]*?)\\end\{itemize\}/g, replacer)
+    .replace(/\\begin\{enumerate\}([\s\S]*?)\\end\{enumerate\}/g, replacer);
 }
 
 function parseAlgorithmLines(body) {
@@ -683,6 +719,24 @@ function applyMarkdownStyleMarkers(text) {
   return text
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/\*([^*]+)\*/g, '<em>$1</em>');
+}
+
+function wrapLemmaProof(text) {
+  const wrapEnv = (env, title, className) => {
+    const regex = new RegExp(`\\\\begin\\{${env}\\}([\\s\\S]*?)\\\\end\\{${env}\\}`, 'g');
+    return txt =>
+      txt.replace(regex, (_m, body) => {
+        const inner = body.trim();
+        const heading = `<div class="env-heading">${title}</div>`;
+        const content = `<div class="env-body">${inner}</div>`;
+        return `<div class="${className}">${heading}${content}</div>`;
+      });
+  };
+
+  let out = text;
+  out = wrapEnv('lemma', 'Lemma.', 'lemma-block')(out);
+  out = wrapEnv('proof', 'Proof.', 'proof-block')(out);
+  return out;
 }
 
 function extractTitleAuthor(text) {
