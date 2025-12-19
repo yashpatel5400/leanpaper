@@ -52,29 +52,12 @@
 \DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
 
 \begin{document}
-% \maketitle
-
-% If your paper is accepted and the title of your paper is very long,
-% the style will print as headings an error message. Use the following
-% command to supply a shorter title of your paper so that it can be
-% used as headings.
-%
-%\runningtitle{I use this title instead because the last one was very long}
-
-% If your paper is accepted and the number of authors is large, the
-% style will print as headings an error message. Use the following
-% command to supply a shorter version of the authors names so that
-% they can be used as headings (for example, use only the surnames)
-%
-%\runningauthor{Surname 1, Surname 2, Surname 3, ...., Surname n}
 
 \twocolumn[
 
-\aistatstitle{Conformal Contextual Robust Optimization}
+\title{Conformal Contextual Robust Optimization}
 
-\aistatsauthor{ Yash Patel \And Sahana Rayan \And  Ambuj Tewari }
-
-\aistatsaddress{ University of Michigan \And University of Michigan \And University of Michigan} ]
+\author{ Yash Patel \And Sahana Rayan \And  Ambuj Tewari }
 
 \begin{abstract}
   Data-driven approaches to predict-then-optimize decision-making problems seek to mitigate the risk of uncertainty region misspecification in safety-critical settings. Current approaches, however, suffer from considering overly conservative uncertainty regions, often resulting in suboptimal decision-making. To this end, we propose Conformal-Predict-Then-Optimize (CPO), a framework for leveraging highly informative, nonconvex conformal prediction regions over high-dimensional spaces based on conditional generative models, which have the desired distribution-free coverage guarantees. Despite guaranteeing robustness, such black-box optimization procedures alone inspire little confidence owing to the lack of explanation of why a particular decision was found to be optimal. We, therefore, augment CPO to additionally provide semantically meaningful visual summaries of the uncertainty regions to give qualitative intuition for the optimal decision. We highlight the CPO framework by demonstrating results on a suite of simulation-based inference benchmark tasks and a vehicle routing task based on probabilistic weather prediction. % , and a novel view synthesis problem.
@@ -89,7 +72,7 @@ Conformal prediction provides a principled framework for producing distribution-
 
 \begin{figure*}
   \centering 
-  \includegraphics[scale=0.34]{images/workflow.png}
+  \includegraphics[scale=0.34]{workflow.png}
   \caption{\label{fig:workflow} \textproc{CPO} leverages informative, non-convex conformal prediction regions for robust predict-then-optimize decision making. \textproc{CPO} uses a score function such that the resulting prediction regions can be decomposed into convex subregions over which optimization can be carried out efficiently. Visual summaries $\{\xi^{(i)}\}$ of the prediction region can similarly be efficiently sampled to gain intuition on the optimal decision $w^{*}$.
   }
 \end{figure*}
@@ -100,11 +83,7 @@ Recent work has demonstrated that defining scores using conditional generative m
 
 In addition to contributing to the predict-then-optimize line of inquiry, we view this work as addressing a concern of the conformal prediction community: how to use implicitly defined non-convex, high-dimensional prediction regions. Works producing such regions have themselves noted the difficulty in their use \citep{sesia2021conformal,izbicki2022cd}. Initial works on coverage for images have framed the utility of their results in highlighting regions of the image with the greatest variability and, hence, uncertainty \citep{angelopoulos2022image,horwitz2022conffusion,belhasin2023principal}. 
 
-Extending such visualization 
-% provides crucial insight for uncertainty-aware decision-making, %over high-dimensional cases,
-% as it 
-gives invaluable intuition to the end user.
-% types of variation the decision was made to be robust to. 
+Extending such visualization gives invaluable intuition to the end user.
 For instance, a black-box optimization procedure for producing drug candidates to robustly bind to a predicted protein structure offers little insight into the decision-making process; however, semantic summaries of the uncertainty region would reveal regions of flexibility of the protein, clarifying why particular structures were deemed optimal in the candidate drug. Such interest in explainable robust decision-making was highlighted in a recent survey \citep{sadana2023survey}, especially given the ``right to explanation'' mandated by the EU's ``General Data Protection Regulation'' \citep{doshi2017towards, kaminski2019right}. 
 Our main contributions, thus, are:
 \begin{itemize}
@@ -253,10 +232,6 @@ as exchangeability with future test points is otherwise lost in conditioning on 
     \EndProcedure
     \end{algorithmic}
 \end{algorithm}
-
-\newpage
-\onecolumn
-\appendix
 
 \section{Prediction Region Validity Lemma}\label{section:coverage_bound}
 \begin{lemma}

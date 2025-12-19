@@ -82,11 +82,12 @@ body {
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(320px, 1.4fr) minmax(260px, 0.8fr);
+  grid-template-columns: minmax(240px, 0.8fr) minmax(320px, 1.5fr) minmax(260px, 0.9fr);
   gap: 18px;
   padding: 18px 24px 28px;
 }
 
+.nav-panel,
 .paper-panel,
 .proof-panel {
   border-radius: 18px;
@@ -94,6 +95,13 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.nav-panel {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  color: #d8deea;
+  backdrop-filter: blur(6px);
 }
 
 .paper-panel {
@@ -230,6 +238,57 @@ body {
   color: #a5d8ff;
 }
 
+.cross-ref {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.cross-ref:hover {
+  text-decoration: underline;
+}
+
+.figure-block {
+  margin: 18px 0;
+  text-align: center;
+}
+
+.figure-block img {
+  max-width: 100%;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(7, 11, 24, 0.18);
+}
+
+.figure-block figcaption {
+  margin-top: 8px;
+  color: #4b5563;
+  font-size: 14px;
+}
+
+.inline-graphic {
+  max-width: 100%;
+}
+
+.algorithm-block {
+  margin: 18px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(12, 18, 30, 0.1);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.algorithm-block .algo-caption {
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.algorithm-block ol {
+  padding-left: 20px;
+  margin: 0;
+  color: #0f1220;
+  line-height: 1.6;
+}
+
 .error {
   color: #b91c1c;
   background: #fef2f2;
@@ -263,12 +322,46 @@ body {
   color: #4b5563;
 }
 
+.paper-list {
+  padding: 12px 12px 18px;
+  overflow-y: auto;
+  flex: 1 1 auto;
+}
+
+.paper-list button {
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: #e7ecf7;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.paper-list button:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+.paper-list button.active {
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  border-color: transparent;
+  color: #0b1623;
+  box-shadow: 0 10px 22px rgba(59, 130, 246, 0.35);
+}
+
 @media (max-width: 1080px) {
   .layout {
     grid-template-columns: 1fr;
     height: auto;
   }
 
+  .nav-panel,
   .paper-panel,
   .proof-panel {
     height: auto;

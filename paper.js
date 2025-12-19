@@ -1,45 +1,64 @@
-const PAPER_PATH = 'core.tex';
-const BIB_PATH = 'refs.bib';
+const DEFAULT_PAPER_PATH = 'core.tex';
+const DEFAULT_BIB_PATH = 'refs.bib';
+const PAPERS = [
+  {
+    id: 'cpo',
+    title: 'Conformal Contextual Robust Optimization',
+    paper: 'core.tex',
+    bib: 'refs.bib'
+  }
+];
 const LATEX_ASSET_BASE = 'https://cdn.jsdelivr.net/npm/latex.js@0.12.6/dist/';
 
 let latexAssetsAttached = false;
+let currentPaperId = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  loadPaper();
+  const initial = resolveInitialPaper();
+  renderPaperList(initial.id);
+  loadPaper(initial);
 });
 
-async function loadPaper() {
+async function loadPaper(selection) {
   const statusEl = document.getElementById('paper-status');
   const paperEl = document.getElementById('paper-content');
+  const { paperPath, bibPath, title, id } = selection || resolveInitialPaper();
+  currentPaperId = id || null;
+  renderPaperList(currentPaperId);
 
   setStatus(statusEl, 'Loading main paper…');
 
-  const bibPromise = fetchBibliography().catch(err => {
-    console.warn('Failed to load bibliography', err);
-    return null;
-  });
+  const bibPromise = bibPath
+    ? fetchBibliography(bibPath).catch(err => {
+        console.warn('Failed to load bibliography', err);
+        return null;
+      })
+    : Promise.resolve(null);
 
   try {
-    const res = await fetch(PAPER_PATH);
+    const res = await fetch(paperPath);
     if (!res.ok) {
       throw new Error(`Request failed with status ${res.status}`);
     }
 
     const rawTex = await res.text();
     const body = extractBody(rawTex);
+    const meta = extractTitleAuthor(body);
     const citationOrder = collectCitations(body);
     const citationMap = makeCitationMap(citationOrder);
     const bibEntriesAll = (await bibPromise) || [];
     const bibEntries = filterBibliography(bibEntriesAll, citationOrder);
     const forceLatex = new URLSearchParams(window.location.search).get('renderer') === 'latexjs';
 
+    resetPanels();
+    updatePaperSubtitle(meta.title || title || paperPath);
+
     let rendered = false;
 
     if (!forceLatex) {
       try {
-        const html = renderWithMarkdown(body, citationMap);
+        const html = renderWithMarkdown(body, citationMap, meta);
         paperEl.innerHTML = html;
-        setStatus(statusEl, 'Rendered with Markdown + MathJax');
         rendered = true;
       } catch (mdErr) {
         console.warn('Markdown render failed, trying LaTeX.js', mdErr);
@@ -47,9 +66,8 @@ async function loadPaper() {
     }
 
     if (!rendered) {
-      const fragment = renderWithLatexJs(body, citationMap);
+      const fragment = renderWithLatexJs(body, citationMap, meta);
       paperEl.replaceChildren(fragment);
-      setStatus(statusEl, 'Rendered with LaTeX.js');
     }
 
     if (window.MathJax && window.MathJax.typesetPromise) {
@@ -62,6 +80,7 @@ async function loadPaper() {
     }
 
     attachCitationHandlers(bibEntries);
+    setStatus(statusEl, '');
   } catch (err) {
     console.error(err);
     setStatus(statusEl, 'Failed to load paper');
@@ -86,12 +105,12 @@ function extractBody(tex) {
   return tex;
 }
 
-function renderWithLatexJs(body, citationMap) {
+function renderWithLatexJs(body, citationMap, meta) {
   if (!window.latexjs) {
     throw new Error('LaTeX.js is not available on window.latexjs');
   }
 
-  const normalized = normalizeLatex(body, citationMap);
+  const normalized = normalizeLatex(body, citationMap, meta);
   const generator = new window.latexjs.HtmlGenerator({ hyphenate: false });
 
   window.latexjs.parse(normalized, { generator });
@@ -108,7 +127,7 @@ function attachLatexAssets(generator) {
   latexAssetsAttached = true;
 }
 
-function normalizeLatex(body, citationMap) {
+function normalizeLatex(body, citationMap, meta) {
   const macroPrelude = [
     '\\newcommand{\\aistatstitle}[1]{\\section*{#1}}',
     '\\newcommand{\\aistatsauthor}[1]{}',
@@ -130,13 +149,16 @@ function normalizeLatex(body, citationMap) {
   text = text.replace(/\\usepackage[^\n]*\n/g, '');
   text = text.replace(/\\bibliographystyle\{[^}]*\}/g, '');
   text = text.replace(/\\addbibresource\{[^}]*\}/g, '');
-  text = text.replace(/\\includegraphics\[.*?\]\{[^}]*\}/g, '');
   text = text.replace(/\\newpage/g, '');
   text = text.replace(/\\onecolumn/g, '');
   text = text.replace(/\\appendix/g, '\\section*{Appendix}');
-  text = text.replace(/\\label\{[^}]*\}/g, '');
+  text = injectLabelAnchors(text);
+  text = normalizeQuotes(text);
+  text = applyTitleAuthor(text, meta, 'latex');
+  text = convertTextStyles(text, 'latex');
 
   text = linkCitations(text, citationMap, (num, slug, key) => `<a class="citation" data-citekey="${key}" href="#ref-${slug}">[${num}]</a>`);
+  text = linkCrossReferences(text);
 
   // Normalize theorem-like environments into plain paragraphs so LaTeX.js can render without style files.
   const theoremish = [
@@ -155,42 +177,27 @@ function normalizeLatex(body, citationMap) {
     text = text.replace(endPattern, '');
   });
 
+  // LaTeX.js path: drop figures to simple captions to avoid invalid HTML in the parser.
   text = text.replace(/\\begin\{figure\*?\}[\s\S]*?\\end\{figure\*?\}/g, fig => {
     const caption = (fig.match(/\\caption\{([^}]*)\}/) || [])[1];
-    return `\\begin{quote}${caption || 'Figure'}\\end{quote}`;
+    return caption ? `\\begin{quote}${caption}\\end{quote}` : '';
   });
+  text = text.replace(/\\includegraphics\[.*?\]\{[^}]*\}/g, '');
 
-  text = convertAlgorithmsToVerbatim(text);
+  text = replaceAlgorithms(text, 'latex');
 
   return `${macroPrelude}\n${text}`;
 }
 
-function convertAlgorithmsToVerbatim(text) {
-  return text.replace(/\\begin\{algorithm\}[\s\S]*?\\end\{algorithm\}/g, match => {
-    const inner = match
-      .replace(/\\begin\{algorithmic\}\[?\d*\]?/g, '')
-      .replace(/\\end\{algorithmic\}/g, '')
-      .replace(/\\caption\{[^}]*\}/g, '')
-      .replace(/\\label\{[^}]*\}/g, '')
-      .trim();
-
-    const cleaned = inner
-      .split('\n')
-      .map(line => line.replace(/^\\/, '').trim())
-      .filter(Boolean)
-      .join('\n');
-
-    return `\\begin{verbatim}\n${cleaned}\n\\end{verbatim}`;
-  });
-}
-
-function renderWithMarkdown(body, citationMap) {
+function renderWithMarkdown(body, citationMap, meta) {
   if (!window.marked) {
     throw new Error('marked is not available for rendering');
   }
 
-  const linkedBody = linkCitations(body, citationMap, (num, slug, key) => `<a class="citation" data-citekey="${key}" href="#ref-${slug}">[${num}]</a>`);
-  const mdSource = latexToMarkdown(linkedBody);
+  const withAnchors = injectLabelAnchors(body);
+  const withCrossRefs = linkCrossReferences(withAnchors);
+  const linkedBody = linkCitations(withCrossRefs, citationMap, (num, slug, key) => `<a class="citation" data-citekey="${key}" href="#ref-${slug}">[${num}]</a>`);
+  const mdSource = latexToMarkdown(linkedBody, meta);
   const { text, placeholders } = extractMathPlaceholders(mdSource);
   window.marked.setOptions({
     mangle: false,
@@ -201,8 +208,9 @@ function renderWithMarkdown(body, citationMap) {
   return restoreMathPlaceholders(html, placeholders);
 }
 
-function latexToMarkdown(body) {
-  let md = body.replace(/^%.*$/gm, '');
+function latexToMarkdown(body, meta) {
+  let md = normalizeQuotes(body.replace(/^%.*$/gm, ''));
+  md = applyTitleAuthor(md, meta, 'markdown');
 
   md = md.replace(/\\twocolumn\[/g, '');
   md = md.replace(/^\]\s*$/gm, '');
@@ -225,35 +233,16 @@ function latexToMarkdown(body) {
   md = md.replace(/\\begin\{gather\*?\}([\s\S]*?)\\end\{gather\*?\}/g, (_, eq) => `$$\n${eq.trim()}\n$$`);
   md = md.replace(/\\begin\{align\*?\}([\s\S]*?)\\end\{align\*?\}/g, (_, eq) => `\\[\n${eq.trim()}\n\\]`);
 
-  md = md.replace(/\\label\{[^}]*\}/g, '');
+  md = injectLabelAnchors(md);
   md = md.replace(/\\textproc\{([^}]*)\}/g, '`$1`');
   md = md.replace(/\\mathds\{([^}]*)\}/g, (_, symbol) => `\\mathbb{${symbol}}`);
   md = md.replace(/\\cite(p|t)?\{([^}]*)\}/g, '[$2]');
+  md = convertTextStyles(md, 'markdown');
 
-  md = md.replace(/\\begin\{algorithm\}[\s\S]*?\\end\{algorithm\}/g, block => {
-    const cleaned = block
-      .replace(/\\begin\{algorithmic\}\[?\d*\]?/g, '')
-      .replace(/\\end\{algorithmic\}/g, '')
-      .replace(/\\caption\{[^}]*\}/g, '')
-      .replace(/\\label\{[^}]*\}/g, '');
+  md = replaceAlgorithms(md, 'markdown');
 
-    const lines = cleaned
-      .split('\n')
-      .map(line => line.replace(/^\\/, '').trim())
-      .filter(Boolean);
-
-    return `\n\`\`\`text\n${lines.join('\n')}\n\`\`\`\n`;
-  });
-
-  md = md.replace(/\\begin\{figure\*?\}[\s\S]*?\\end\{figure\*?\}/g, fig => {
-    const caption = (fig.match(/\\caption\{([^}]*)\}/) || [])[1];
-    const src = (fig.match(/\\includegraphics(?:\[.*?\])?\{([^}]*)\}/) || [])[1];
-    const pieces = [];
-    if (caption) pieces.push(caption);
-    if (src) pieces.push(src);
-    const text = pieces.length ? pieces.join(' — ') : 'Figure';
-    return `> ${text}\n`;
-  });
+  md = convertFigures(md, 'markdown');
+  md = convertStandaloneGraphics(md, 'markdown');
 
   const envToHeading = {
     lemma: 'Lemma.',
@@ -306,6 +295,15 @@ function restoreMathPlaceholders(html, placeholders) {
   return placeholders.reduce((acc, math, idx) => acc.replace(`@@MATH${idx}@@`, math), html);
 }
 
+function resolveInitialPaper() {
+  const { paperPath, bibPath } = getAssetPaths();
+  const matched = PAPERS.find(p => p.paper === paperPath) || null;
+  if (matched) {
+    return { id: matched.id, title: matched.title, paperPath: matched.paper, bibPath: matched.bib };
+  }
+  return { id: null, title: paperPath, paperPath, bibPath };
+}
+
 function collectCitations(text) {
   const citeRegex = /\\cite(p|t)?\{([^}]*)\}/g;
   const order = [];
@@ -345,8 +343,15 @@ function filterBibliography(entries, citationOrder) {
     .filter(Boolean);
 }
 
-async function fetchBibliography() {
-  const res = await fetch(BIB_PATH);
+function getAssetPaths() {
+  const params = new URLSearchParams(window.location.search);
+  const paperPath = params.get('paper') || DEFAULT_PAPER_PATH;
+  const bibPath = params.get('bib') || DEFAULT_BIB_PATH;
+  return { paperPath, bibPath };
+}
+
+async function fetchBibliography(path) {
+  const res = await fetch(path);
   if (!res.ok) {
     throw new Error(`References not found (${res.status})`);
   }
@@ -493,4 +498,249 @@ function renderReferenceDetail(entry) {
   ].filter(Boolean);
 
   return parts.join('');
+}
+
+function injectLabelAnchors(text) {
+  return text.replace(/\\label\{([^}]*)\}/g, (_, label) => `<span id="cref-${label}"></span>`);
+}
+
+function linkCrossReferences(text) {
+  const refRegex = /\\[cC]ref\{([^}]*)\}/g;
+  return text.replace(refRegex, (_, content) => {
+    const labels = content.split(',').map(l => l.trim()).filter(Boolean);
+    if (!labels.length) return '';
+    const links = labels.map(label => `<a class="cross-ref" href="#cref-${label}">[${label}]</a>`);
+    return links.join(' ');
+  });
+}
+
+function normalizeQuotes(text) {
+  // Convert LaTeX-style opening quotes ``text'' to standard typographic quotes.
+  return text.replace(/``([^`]+)''/g, '“$1”');
+}
+
+function convertFigures(text, mode) {
+  return text.replace(/\\begin\{figure\*?\}([\s\S]*?)\\end\{figure\*?\}/g, fig => {
+    const caption = (fig.match(/\\caption\{([^}]*)\}/) || [])[1];
+    const graphics = fig.match(/\\includegraphics(?:\[(.*?)\])?\{([^}]*)\}/);
+    const options = graphics ? graphics[1] : '';
+    const src = graphics ? resolveImagePath(graphics[2]) : '';
+    const style = options ? graphicsOptionsToStyle(options) : '';
+    const anchor = (fig.match(/<span id="[^"]*"><\/span>/) || [])[0] || '';
+
+    if (!src) {
+      const text = caption || 'Figure';
+      return mode === 'markdown' ? `${anchor}> ${text}\n` : `${anchor}\\begin{quote}${text}\\end{quote}`;
+    }
+
+    if (mode === 'markdown') {
+      return `\n${anchor}<figure class="figure-block"><img src="${src}" alt="${caption || 'Figure'}"${style ? ` style="${style}"` : ''}>${caption ? `<figcaption>${caption}</figcaption>` : ''}</figure>\n`;
+    }
+
+    return `${anchor}<figure class="figure-block"><img src="${src}" alt="${caption || 'Figure'}"${style ? ` style="${style}"` : ''}>${caption ? `<figcaption>${caption}</figcaption>` : ''}</figure>`;
+  });
+}
+
+function convertStandaloneGraphics(text, mode) {
+  const imgRegex = /\\includegraphics(?:\[(.*?)\])?\{([^}]*)\}/g;
+  return text.replace(imgRegex, (_, options = '', src = '') => {
+    const style = options ? graphicsOptionsToStyle(options) : '';
+    const resolved = resolveImagePath(src);
+    if (!resolved) return '';
+    const alt = '';
+    const tag = `<img class="inline-graphic" src="${resolved}" alt="${alt}"${style ? ` style="${style}"` : ''}>`;
+    return tag;
+  });
+}
+
+function graphicsOptionsToStyle(options) {
+  // Basic handling for scale or width options.
+  const scaleMatch = options.match(/scale\s*=\s*([0-9.]+)/);
+  if (scaleMatch) {
+    const pct = Math.round(parseFloat(scaleMatch[1]) * 100);
+    if (!Number.isNaN(pct)) {
+      return `max-width: ${pct}%`;
+    }
+  }
+  const widthMatch = options.match(/width\s*=\s*([0-9.]+)\s*\\?textwidth/);
+  if (widthMatch) {
+    const pct = Math.round(parseFloat(widthMatch[1]) * 100);
+    if (!Number.isNaN(pct)) {
+      return `max-width: ${pct}%`;
+    }
+  }
+  return '';
+}
+
+function resolveImagePath(src) {
+  if (!src) return '';
+  // If already absolute or has a slash, leave it; otherwise, try images/ as a fallback.
+  if (/^(https?:)?\/\//.test(src) || src.includes('/')) return src;
+  return `images/${src}`;
+}
+
+function replaceAlgorithms(text, mode) {
+  return text.replace(/\\begin\{algorithm\}[\s\S]*?\\end\{algorithm\}/g, block => {
+    const caption = (block.match(/\\caption\{([^}]*)\}/) || [])[1] || '';
+    const label = (block.match(/\\label\{([^}]*)\}/) || [])[1] || '';
+    const body = block
+      .replace(/\\begin\{algorithmic\}\[?\d*\]?/g, '')
+      .replace(/\\end\{algorithmic\}/g, '')
+      .replace(/\\caption\{[^}]*\}/g, '')
+      .replace(/\\label\{[^}]*\}/g, '');
+
+    const steps = parseAlgorithmLines(body);
+
+    if (mode === 'markdown') {
+      const items = steps.map(step => `<li>${step}</li>`).join('');
+      return `
+<div class="algorithm-block"${label ? ` id="cref-${label}"` : ''}>
+  ${caption ? `<div class="algo-caption">${caption}</div>` : ''}
+  <ol>${items}</ol>
+</div>
+`;
+    }
+
+    const items = steps.map(step => `<li>${step}</li>`).join('');
+    return `<div class="algorithm-block"${label ? ` id="cref-${label}"` : ''}>${caption ? `<div class="algo-caption">${caption}</div>` : ''}<ol>${items}</ol></div>`;
+  });
+}
+
+function parseAlgorithmLines(body) {
+  return body
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(line => {
+      // Strip leading command and capture brace content if present.
+      const cmdMatch = line.match(/^\\([A-Za-z]+)\s*(\{([^}]*)\})?(.*)/);
+      if (cmdMatch) {
+        const cmd = cmdMatch[1];
+        const braceContent = cmdMatch[3] ? cmdMatch[3].trim() : '';
+        const rest = cmdMatch[4].trim();
+        const content = braceContent || rest;
+        if (cmd.toLowerCase() === 'textbf') {
+          return `<strong>${content}</strong>`;
+        }
+        if (cmd.toLowerCase() === 'procedure') {
+          return `<strong>${braceContent || content}</strong>${rest ? ` ${rest}` : ''}`;
+        }
+        if (cmd.toLowerCase().startsWith('end')) {
+          return '';
+        }
+        if (cmd.toLowerCase() === 'for') {
+          return `For ${content}${rest ? ` ${rest}` : ''}`;
+        }
+        if (cmd.toLowerCase() === 'statex') {
+          return content || rest;
+        }
+        return content || rest;
+      }
+      return line;
+    })
+    .filter(Boolean);
+}
+
+function convertTextStyles(text, mode) {
+  if (mode === 'markdown') {
+    return text
+      .replace(/\\textbf\{([^}]*)\}/g, '**$1**')
+      .replace(/\\textit\{([^}]*)\}/g, '*$1*');
+  }
+  // For LaTeX.js path, translate to HTML so styles survive stripping of packages.
+  return text
+    .replace(/\\textbf\{([^}]*)\}/g, '<strong>$1</strong>')
+    .replace(/\\textit\{([^}]*)\}/g, '<em>$1</em>');
+}
+
+function extractTitleAuthor(text) {
+  const titleMatch = text.match(/\\title\{([^}]*)\}/);
+  const authorMatch = text.match(/\\author\{([^}]*)\}/);
+  const title = titleMatch ? titleMatch[1].trim() : null;
+  let authors = authorMatch ? authorMatch[1] : null;
+  if (authors) {
+    authors = authors.replace(/\\And/g, ',').replace(/\s+/g, ' ').replace(/\s*,\s*/g, ', ').trim();
+  }
+  return { title, authors };
+}
+
+function applyTitleAuthor(text, meta, mode) {
+  if (!meta) return text;
+  let out = text.replace(/\\title\{[^}]*\}\s*/g, '').replace(/\\author\{[^}]*\}\s*/g, '');
+
+  const lines = [];
+  if (meta.title) {
+    lines.push(mode === 'markdown' ? `# ${meta.title}` : `\\section*{${meta.title}}`);
+  }
+  if (meta.authors) {
+    lines.push(mode === 'markdown' ? `*${meta.authors}*` : `\\textit{${meta.authors}}`);
+    lines.push(mode === 'markdown' ? '---' : '\\\\[6pt]\\hrule');
+  }
+
+  if (lines.length) {
+    out = `${lines.join('\n')}\n\n${out}`;
+  }
+
+  return out;
+}
+
+function renderPaperList(activeId) {
+  const listEl = document.getElementById('paper-list');
+  if (!listEl) return;
+  if (!PAPERS.length) {
+    listEl.innerHTML = '<p class="muted">No papers added yet.</p>';
+    return;
+  }
+
+  listEl.innerHTML = '';
+  PAPERS.forEach(paper => {
+    const btn = document.createElement('button');
+    btn.textContent = paper.title;
+    if (paper.id === activeId) {
+      btn.classList.add('active');
+    }
+    btn.addEventListener('click', () => selectPaper(paper));
+    listEl.appendChild(btn);
+  });
+}
+
+function selectPaper(paper) {
+  const params = new URLSearchParams(window.location.search);
+  params.set('paper', paper.paper);
+  if (paper.bib) {
+    params.set('bib', paper.bib);
+  } else {
+    params.delete('bib');
+  }
+  const newSearch = params.toString();
+  history.replaceState(null, '', `${window.location.pathname}${newSearch ? `?${newSearch}` : ''}`);
+  loadPaper({ id: paper.id, title: paper.title, paperPath: paper.paper, bibPath: paper.bib });
+}
+
+function resetPanels() {
+  const paperEl = document.getElementById('paper-content');
+  const sidePanel = document.getElementById('side-panel-body');
+  if (paperEl) {
+    paperEl.innerHTML = '<p class="muted">Loading main paper…</p>';
+  }
+  if (sidePanel) {
+    sidePanel.innerHTML = '<p>Click a citation to see the reference here.</p><p>We’ll also surface Lean snippets in this panel soon.</p>';
+    sidePanel.className = 'proof-placeholder';
+  }
+}
+
+function updatePaperSubtitle(text) {
+  const subtitle = document.querySelector('.paper-panel .panel-subtitle');
+  if (subtitle) {
+    subtitle.textContent = `Rendered from ${text}`;
+  }
+}
+
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
