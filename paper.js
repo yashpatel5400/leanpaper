@@ -19,11 +19,11 @@ let equationNumbers = {};
 let currentTOC = [];
 const PROOF_SOURCES = {
   'lemma:coverage_bound': {
-    path: 'subopt.lean',
+    path: 'contextual_robust_optimization/lean/ContextualRobustOpt/Subopt.lean',
     anchor: 'theorem coverage_bound'
   },
   'lemma:cpo_convergence': {
-    path: 'convergence.lean',
+    path: 'contextual_robust_optimization/lean/ContextualRobustOpt/Convergence.lean',
     anchor: 'theorem pgd_convergence'
   }
 };
@@ -560,7 +560,8 @@ async function loadLeanProof(label) {
     throw new Error(`Failed to fetch ${source.path} (${res.status})`);
   }
   const text = await res.text();
-  const snippet = extractLeanSnippet(text, source.anchor);
+  // Show the whole file so definitions/context are visible; anchor is kept for potential future highlighting.
+  const snippet = text;
 
   return `
     <div class="reference-detail">

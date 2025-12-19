@@ -1,11 +1,3 @@
-/-
-We formally prove the coverage bound lemma.
-The lemma states that if a function $f(w, \cdot)$ is $L$-Lipschitz and the probability that $C \in U(X)$ is at least $1-\alpha$, then the probability that the maximum distance $\Delta(X, C)$ is bounded by $L \cdot \text{diam}(U(X))$ is also at least $1-\alpha$.
-We define $\Delta(X, C)(\omega) = \sup_{c' \in U(X(\omega))} d(f(w, C(\omega)), f(w, c'))$.
-The proof relies on the Lipschitz property: $d(f(w, C), f(w, c')) \le L \cdot d(C, c') \le L \cdot \text{diam}(U(X))$.
-This implies that the event $\{C \in U(X)\}$ is contained in the event $\{\Delta(X, C) \le L \cdot \text{diam}(U(X))\}$, and the result follows by monotonicity of the measure.
--/
-
 import Mathlib
 
 open MeasureTheory ProbabilityTheory Metric ENNReal Set
