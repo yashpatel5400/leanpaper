@@ -289,6 +289,11 @@ body {
   line-height: 1.6;
 }
 
+.algorithm-block .algo-indent {
+  display: block;
+  padding-left: 12px;
+}
+
 .error {
   color: #b91c1c;
   background: #fef2f2;
@@ -340,6 +345,10 @@ body {
   cursor: pointer;
   font-weight: 600;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
 }
 
 .paper-list button:hover {
@@ -353,6 +362,20 @@ body {
   border-color: transparent;
   color: #0b1623;
   box-shadow: 0 10px 22px rgba(59, 130, 246, 0.35);
+}
+
+.paper-list .bullet {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  display: inline-block;
+  background: transparent;
+}
+
+.paper-list button.active .bullet {
+  background: #0b1623;
+  border-color: #0b1623;
 }
 
 @media (max-width: 1080px) {

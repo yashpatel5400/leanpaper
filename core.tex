@@ -167,7 +167,6 @@ where the maximum over a ball can be efficiently computed with traditional conve
   \begin{algorithmic}[1]
     \Procedure{CPO-Opt}{}
     \Statex \textbf{Inputs: } Context $x$, CGM $q(C\mid X)$, Optimization steps $T$, Score samples $K$, Conformal quantile $\widehat{q}$
-    % Desired coverage $1-\alpha$, Volume Tolerance $\epsilon$, Calibration sets $\mathcal{D}_{\mathcal{C}_1}, \mathcal{D}_{\mathcal{C}_2}$, Test set $\mathcal{D}_{T}$
     \State $w \sim U(\mathcal{W}), \{\widehat{c_k}\}_{k=1}^{K} \sim q(C \mid x)$
     \For{$t \in\{1,\ldots T\}$}
     \State $\left\{c_{k}^{*} \gets \argmax_{\widehat{c} \in \mathcal{B}_{\widehat{q}}(\widehat{c}_{k})} f(w, \widehat{c})\right\}_{k=1}^{K}$
@@ -210,7 +209,7 @@ user-specified $\epsilon$ volume tolerance. Critically, these volume estimates m
 as exchangeability with future test points is otherwise lost in conditioning on $\mathcal{D_C}$ for selecting $K^*$ \citep{yang2021finite}. We, thus, partition $\mathcal{D}_{\mathcal{C}} := \mathcal{D}_{\mathcal{C}_1} \cup \mathcal{D}_{\mathcal{C}_2}$, using $\mathcal{D}_{\mathcal{C}_1}$ for calibration and $\mathcal{D}_{\mathcal{C}_2}$ for volume estimation, detailed in Algorithm \ref{alg:CPO}.
 
 \begin{algorithm}
-  \caption{\label{alg:CPO} \textproc{CPO}}
+  \caption{\label{alg:VolumeEst} \textproc{VolumeEst}}
   \begin{algorithmic}[1]
     \Procedure{VolumeEst}{}
     \Statex \textbf{Inputs: } Context $x$, CGM $q(C\mid X)$, Conformal quantile $\widehat{q}$
@@ -218,7 +217,11 @@ as exchangeability with future test points is otherwise lost in conditioning on 
     \State $\left\{\{c_{k, m}\}_{m = 1}^{M}  \sim U(\mathcal{B}_{\widehat{q}}(\widehat{c}_{k})) \right\}_{k = 1}^{K}$
     \State \textbf{Return} $|B_{\widehat{q}}| \sum_{k=1}^{K} \frac{1}{M}\sum_{m=1}^{M}\mathds{1}\left[c_{k, m} \in V(\widehat{c}_{k})\right]$
     \EndProcedure
-    \Statex 
+  \end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}
+  \caption{\label{alg:CPO} \textproc{CPO}}
     \Procedure{CPO}{}
     \Statex \textbf{Inputs: } Context $x$, CGM $q(C\mid X)$, Optimization steps $T$, Desired coverage $1-\alpha$, Max samples $K_{\max}$, Volume Tolerance $\epsilon$, Calibration sets $\mathcal{D}_{\mathcal{C}_1}, \mathcal{D}_{\mathcal{C}_2}$
     \For{$K \in\{1,\ldots K_{\max}\}$}

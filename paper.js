@@ -607,38 +607,64 @@ function replaceAlgorithms(text, mode) {
 }
 
 function parseAlgorithmLines(body) {
-  return body
+  const lines = body
     .split('\n')
     .map(line => line.trim())
-    .filter(Boolean)
-    .map(line => {
-      // Strip leading command and capture brace content if present.
-      const cmdMatch = line.match(/^\\([A-Za-z]+)\s*(\{([^}]*)\})?(.*)/);
-      if (cmdMatch) {
-        const cmd = cmdMatch[1];
-        const braceContent = cmdMatch[3] ? cmdMatch[3].trim() : '';
-        const rest = cmdMatch[4].trim();
-        const content = braceContent || rest;
-        if (cmd.toLowerCase() === 'textbf') {
-          return `<strong>${content}</strong>`;
-        }
-        if (cmd.toLowerCase() === 'procedure') {
-          return `<strong>${braceContent || content}</strong>${rest ? ` ${rest}` : ''}`;
-        }
-        if (cmd.toLowerCase().startsWith('end')) {
-          return '';
-        }
-        if (cmd.toLowerCase() === 'for') {
-          return `For ${content}${rest ? ` ${rest}` : ''}`;
-        }
-        if (cmd.toLowerCase() === 'statex') {
-          return content || rest;
-        }
-        return content || rest;
-      }
-      return line;
-    })
     .filter(Boolean);
+
+  let forDepth = 0;
+  const output = [];
+
+  lines.forEach(line => {
+    const lower = line.toLowerCase();
+    const isEndFor = /^\\endfor\b/.test(lower) || /^\\end\{?for\}?/.test(lower);
+    if (isEndFor) {
+      forDepth = Math.max(0, forDepth - 1);
+      return;
+    }
+
+    const isFor = /^\\for\b/.test(lower);
+    const parsed = transformAlgorithmLine(line);
+    if (!parsed) return;
+
+    const styled = applyMarkdownStyleMarkers(convertTextStyles(parsed, 'latex'));
+    const maybeIndented = !isFor && forDepth > 0 ? `<span class="algo-indent">${styled}</span>` : styled;
+    output.push(maybeIndented);
+
+    if (isFor) {
+      forDepth += 1;
+    }
+  });
+
+  return output;
+}
+
+function transformAlgorithmLine(line) {
+  const cmdMatch = line.match(/^\\([A-Za-z]+)\s*(\{([^}]*)\})?(.*)/);
+  if (cmdMatch) {
+    const cmd = cmdMatch[1];
+    const braceContent = cmdMatch[3] ? cmdMatch[3].trim() : '';
+    const rest = cmdMatch[4].trim();
+    const content = braceContent || rest;
+    const cmdLower = cmd.toLowerCase();
+    if (cmdLower === 'textbf') {
+      return `<strong>${content}</strong>`;
+    }
+    if (cmdLower === 'procedure') {
+      return `<strong>${braceContent || content}</strong>${rest ? ` ${rest}` : ''}`;
+    }
+    if (cmdLower.startsWith('end')) {
+      return '';
+    }
+    if (cmdLower === 'for') {
+      return `For ${content}${rest ? ` ${rest}` : ''}`;
+    }
+    if (cmdLower === 'statex') {
+      return content || rest;
+    }
+    return content || rest;
+  }
+  return line;
 }
 
 function convertTextStyles(text, mode) {
@@ -651,6 +677,12 @@ function convertTextStyles(text, mode) {
   return text
     .replace(/\\textbf\{([^}]*)\}/g, '<strong>$1</strong>')
     .replace(/\\textit\{([^}]*)\}/g, '<em>$1</em>');
+}
+
+function applyMarkdownStyleMarkers(text) {
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>');
 }
 
 function extractTitleAuthor(text) {
@@ -695,7 +727,12 @@ function renderPaperList(activeId) {
   listEl.innerHTML = '';
   PAPERS.forEach(paper => {
     const btn = document.createElement('button');
-    btn.textContent = paper.title;
+    const bullet = document.createElement('span');
+    bullet.className = 'bullet';
+    const label = document.createElement('span');
+    label.textContent = paper.title;
+    btn.appendChild(bullet);
+    btn.appendChild(label);
     if (paper.id === activeId) {
       btn.classList.add('active');
     }
