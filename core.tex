@@ -72,7 +72,7 @@ Conformal prediction provides a principled framework for producing distribution-
 
 \begin{figure*}
   \includegraphics{workflow.png}
-  \caption{\textproc{CPO} leverages informative, non-convex conformal prediction regions for robust predict-then-optimize decision making. \textproc{CPO} uses a score function such that the resulting prediction regions can be decomposed into convex subregions over which optimization can be carried out efficiently. Visual summaries $\{\xi^{(i)}\}$ of the prediction region can similarly be efficiently sampled to gain intuition on the optimal decision $w^{*}$.
+  \caption{CPO leverages informative, non-convex conformal prediction regions for robust predict-then-optimize decision making. CPO uses a score function such that the resulting prediction regions can be decomposed into convex subregions over which optimization can be carried out efficiently. Visual summaries $\{\xi^{(i)}\}$ of the prediction region can similarly be efficiently sampled to gain intuition on the optimal decision $w^{*}$.
   }
 \end{figure*}
 
@@ -151,7 +151,7 @@ For most score functions, the min-max optimization problem of \Cref{eqn:robust_o
 \begin{equation}
     s(x,c) = \min_{k}\left[d\left(\widehat{c}_k, c\right) \right].
 \end{equation}
-We refer to this score as ``Generalized Probabilistic Conformal Prediction,'' (GPCP) whose validity follows from that of the original PCP framework \citep{wang2022probabilistic}. We discuss the selection of $K$ in Section \ref{section:k_selection}.
+We refer to this score as ``Generalized Probabilistic Conformal Prediction,'' (GPCP) whose validity follows from that of the original PCP framework \citep{wang2022probabilistic}.
 
 \subsection{CPO: Optimization Algorithm}\label{section:optimization}
 We fix $\alpha\in[0,1]$ and take $\mathcal{U}(x)$ to be the $1-\alpha$ prediction region $\mathcal{C}(x)$. Let $\phi(w) := \max_{\widehat{c} \in \mathcal{C}(x)} f(w, \widehat{c})$. It follows that $\phi(w)$ is convex by Danskin's Theorem by assumption of the convexity of $f$ in $w$. Exact solution of the min-max problem, thus, follows using standard gradient-based optimization techniques on $\phi(w)$. By Danskin's Theorem, $\nabla_{w} \phi(w) = \nabla_{w} f(w, c^{*})$, where $c^{*} := \max_{\widehat{c} \in \mathcal{C}(x)} f(w, \widehat{c})$. We follow the standard projected gradient descent optimization scheme, projecting into $\mathcal{W}$ at each iterate, denoted by $\Pi_{\mathcal{W}}$.

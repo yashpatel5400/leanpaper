@@ -15,6 +15,7 @@ const LATEX_ASSET_BASE = 'https://cdn.jsdelivr.net/npm/latex.js@0.12.6/dist/';
 let latexAssetsAttached = false;
 let currentPaperId = null;
 let equationNumbers = {};
+let currentTOC = [];
 const PROOF_SOURCES = {
   'lemma:coverage_bound': {
     path: 'subopt.lean',
@@ -104,6 +105,9 @@ async function loadPaper(selection) {
     if (window.MathJax && window.MathJax.typesetPromise) {
       await window.MathJax.typesetPromise([paperEl]);
     }
+
+    currentTOC = buildTOC(paperEl);
+    renderPaperList(currentPaperId);
 
     if (bibEntries && bibEntries.length) {
       const refsHtml = renderBibliographySection(bibEntries);
@@ -242,7 +246,9 @@ function renderWithMarkdown(body, citationMap, meta, eqNumbers) {
     headerIds: false
   });
 
-  const html = window.marked.parse(text);
+  let html = window.marked.parse(text);
+  // Remove stray dollar-only paragraphs that can appear if math blocks were partially parsed.
+  html = html.replace(/<p>\\?\$\\?\$?\\?<\/p>\s*/g, '');
   return restoreMathPlaceholders(html, placeholders);
 }
 
@@ -256,7 +262,7 @@ function latexToMarkdown(body, meta, eqNumbers) {
   md = md.replace(/\\aistatsauthor\{([^}]*)\}/, '*$1*\n');
   md = md.replace(/\\aistatsaddress\{([^}]*)\}/, '*$1*\n');
 
-  md = md.replace(/\\begin\{abstract\}/, '### Abstract\n');
+  md = md.replace(/\\begin\{abstract\}/, '## Abstract\n');
   md = md.replace(/\\end\{abstract\}/, '\n\n---\n\n');
 
   md = md.replace(/\\section\{([^}]*)\}/g, '## $1');
@@ -433,7 +439,8 @@ function renderBibliographySection(entries) {
     .map(entry => {
       const slug = slugifyCiteKey(entry.citekey);
       const label = entry.number || '';
-      return `<li id="ref-${slug}"><span class="ref-label">[${label}]</span> ${formatBibEntry(entry)}</li>`;
+      const numLink = `<a class="citation" data-citekey="${entry.citekey}" href="#ref-${slug}">[${label}]</a>`;
+      return `<li id="ref-${slug}"><span class="ref-label">${numLink}</span> ${formatBibEntry(entry)}</li>`;
     })
     .join('');
 
@@ -684,10 +691,32 @@ function normalizeQuotes(text) {
   return text.replace(/``([^`]+)''/g, '“$1”');
 }
 
+function extractCommandArgument(tex, command) {
+  const startToken = `\\${command}{`;
+  const start = tex.indexOf(startToken);
+  if (start === -1) return '';
+  let depth = 0;
+  let arg = '';
+  for (let i = start + startToken.length; i < tex.length; i++) {
+    const ch = tex[i];
+    if (ch === '{') {
+      depth += 1;
+    } else if (ch === '}') {
+      if (depth === 0) {
+        // argument ends
+        return arg;
+      }
+      depth -= 1;
+    }
+    arg += ch;
+  }
+  return arg;
+}
+
 function convertFigures(text, mode) {
   const figRegex = /\\begin\{figure\*?\}[\s\S]*?\\end\{figure\*?\}/g;
   return text.replace(figRegex, fig => {
-    const caption = (fig.match(/\\caption\{([\s\S]*?)\}/) || [])[1] || '';
+    const caption = extractCommandArgument(fig, 'caption') || '';
     const graphics = fig.match(/\\includegraphics(?:\[(.*?)\])?\{([^}]*)\}/);
     const options = graphics ? graphics[1] : '';
     const src = graphics ? resolveImagePath(graphics[2]) : '';
@@ -1002,6 +1031,9 @@ function renderPaperList(activeId) {
 
   listEl.innerHTML = '';
   PAPERS.forEach(paper => {
+    const group = document.createElement('div');
+    group.className = 'paper-group';
+
     const btn = document.createElement('button');
     btn.className = 'paper-entry';
     const bullet = document.createElement('span');
@@ -1044,7 +1076,30 @@ function renderPaperList(activeId) {
       btn.classList.add('active');
     }
     btn.addEventListener('click', () => selectPaper(paper));
-    listEl.appendChild(btn);
+    group.appendChild(btn);
+
+    if (paper.id === activeId && currentTOC.length) {
+      const acc = document.createElement('div');
+      acc.className = 'paper-accordion';
+      acc.innerHTML = '<div class="accordion-title">Contents</div>';
+      const ul = document.createElement('ul');
+      currentTOC.forEach(item => {
+        const li = document.createElement('li');
+        if (item.level === 3) {
+          li.className = 'toc-sub';
+        }
+        const a = document.createElement('a');
+        a.href = item.id ? `#${item.id}` : '#';
+        a.textContent = item.text;
+        a.addEventListener('click', ev => ev.stopPropagation());
+        li.appendChild(a);
+        ul.appendChild(li);
+      });
+      acc.appendChild(ul);
+      group.appendChild(acc);
+    }
+
+    listEl.appendChild(group);
   });
 }
 
@@ -1096,6 +1151,42 @@ function updateActionLinks(paper) {
   if (pdf && paper && paper.pdf) {
     pdf.href = paper.pdf;
   }
+}
+
+function slugifyHeading(text) {
+  return (text || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s\-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function buildTOC(container) {
+  if (!container) return;
+  // Skip title/author: use h2/h3 and drop the very first heading (paper title).
+  const headings = Array.from(container.querySelectorAll('h2, h3'));
+  const filtered = headings.filter((h, idx) => !(idx === 0));
+  if (!filtered.length) return [];
+
+  const seen = {};
+  filtered.forEach((h, idx) => {
+    const base = slugifyHeading(h.textContent) || `section-${idx + 1}`;
+    let slug = base;
+    let counter = 1;
+    while (seen[slug]) {
+      slug = `${base}-${counter++}`;
+    }
+    seen[slug] = true;
+    h.id = slug;
+  });
+
+  return filtered.map(h => ({
+    id: h.id,
+    text: h.textContent,
+    level: h.tagName.toLowerCase() === 'h3' ? 3 : 2
+  }));
 }
 
 function escapeHtml(str) {

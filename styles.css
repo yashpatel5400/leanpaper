@@ -331,6 +331,43 @@ body {
   scroll-margin-top: 80px;
 }
 
+.toc-block {
+  border: 1px solid rgba(12, 18, 30, 0.08);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 12px 0 18px;
+  background: #f4f6fb;
+}
+
+.toc-title {
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: #0f1220;
+}
+
+.toc-block ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.toc-block li {
+  margin: 6px 0;
+}
+
+.toc-block li.toc-sub {
+  padding-left: 12px;
+}
+
+.toc-block a {
+  color: #1f4fbf;
+  text-decoration: none;
+}
+
+.toc-block a:hover {
+  text-decoration: underline;
+}
+
 .eq-number {
   margin-left: 10px;
   font-weight: 600;
@@ -423,6 +460,10 @@ body {
   flex: 1 1 auto;
 }
 
+.paper-group {
+  margin-bottom: 10px;
+}
+
 .paper-entry {
   width: 100%;
   text-align: left;
@@ -467,6 +508,45 @@ body {
 .paper-entry.active .bullet {
   background: #0b1623;
   border-color: #0b1623;
+}
+
+.paper-accordion {
+  margin-top: -4px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.paper-accordion .accordion-title {
+  font-weight: 700;
+  font-size: 13px;
+  color: #d8deea;
+  margin-bottom: 6px;
+}
+
+.paper-accordion ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.paper-accordion li {
+  margin: 6px 0;
+}
+
+.paper-accordion li.toc-sub {
+  padding-left: 12px;
+}
+
+.paper-accordion a {
+  color: #a5d8ff;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.paper-accordion a:hover {
+  text-decoration: underline;
 }
 
 .entry-icons {
