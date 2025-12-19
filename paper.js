@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const initial = resolveInitialPaper();
   renderPaperList(initial.id);
   loadPaper(initial);
+  setupResizers();
 });
 
 async function loadPaper(selection) {
@@ -626,6 +627,149 @@ function setLeanOutput(text, state = '') {
   if (!output) return;
   output.textContent = text;
   output.className = `lean-output${state ? ` ${state}` : ''}`;
+}
+
+function setupResizers() {
+  setupMainResizers();
+  setupProofResizer();
+}
+
+function setupMainResizers() {
+  const layout = document.querySelector('.layout');
+  const leftHandle = document.getElementById('divider-nav-paper');
+  const rightHandle = document.getElementById('divider-paper-proof');
+  if (!layout || !leftHandle || !rightHandle) return;
+
+  const root = document.documentElement;
+  const dividerW = parseInt(getComputedStyle(root).getPropertyValue('--divider')) || 6;
+  const minNav = 220;
+  const minPaper = 520;
+  const minProof = 280;
+
+  function getState() {
+    const navEl = document.querySelector('.nav-panel');
+    const paperEl = document.querySelector('.paper-panel');
+    const proofEl = document.querySelector('.proof-panel');
+    let nav = navEl ? navEl.getBoundingClientRect().width : 0;
+    let paper = paperEl ? paperEl.getBoundingClientRect().width : 0;
+    let proof = proofEl ? proofEl.getBoundingClientRect().width : 0;
+    if (!nav || Number.isNaN(nav)) nav = 280;
+    if (!paper || Number.isNaN(paper)) paper = 760;
+    if (!proof || Number.isNaN(proof)) proof = 400;
+    return { nav, paper, proof };
+  }
+
+  function setState({ nav, paper, proof }) {
+    root.style.setProperty('--col-nav', `${nav}px`);
+    root.style.setProperty('--col-paper', `${paper}px`);
+    root.style.setProperty('--col-proof', `${proof}px`);
+  }
+
+  function clamp(val, min, max) {
+    return Math.max(min, Math.min(max, val));
+  }
+
+  function attach(handle, onDrag) {
+    let startX = 0;
+    let startState = null;
+    function onMove(e) {
+      const dx = e.clientX - startX;
+      onDrag(dx, startState);
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    }
+    handle.addEventListener('mousedown', e => {
+      e.preventDefault();
+      startX = e.clientX;
+      startState = getState();
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    });
+  }
+
+  attach(leftHandle, (dx, start) => {
+    const total = layout.clientWidth;
+    let nav = clamp(start.nav + dx, minNav, total - dividerW * 2 - minPaper - minProof);
+    let paper = start.paper;
+    let proof = start.proof;
+    const remaining = total - dividerW * 2 - nav;
+    if (paper + proof > remaining) {
+      const scale = remaining / (paper + proof);
+      paper = paper * scale;
+      proof = proof * scale;
+    }
+    paper = clamp(paper, minPaper, remaining - minProof);
+    proof = remaining - paper;
+    if (proof < minProof) {
+      proof = minProof;
+      paper = remaining - proof;
+    }
+    setState({ nav, paper, proof });
+  });
+
+  attach(rightHandle, (dx, start) => {
+    const total = layout.clientWidth;
+    let nav = start.nav;
+    let paper = clamp(start.paper + dx, minPaper, total - dividerW * 2 - nav - minProof);
+    let proof = total - dividerW * 2 - nav - paper;
+    if (proof < minProof) {
+      proof = minProof;
+      paper = total - dividerW * 2 - nav - proof;
+    }
+    setState({ nav, paper, proof });
+  });
+}
+
+function setupProofResizer() {
+  const split = document.querySelector('.proof-split');
+  const handle = document.getElementById('divider-proof-split');
+  if (!split || !handle) return;
+  const root = document.documentElement;
+  const minTop = 80;
+  const minBottom = 80;
+
+  function getState() {
+    const sections = split.querySelectorAll('.proof-section');
+    let top = sections[0] ? sections[0].getBoundingClientRect().height : 0;
+    let bottom = sections[1] ? sections[1].getBoundingClientRect().height : 0;
+    if (!top || Number.isNaN(top)) top = split.clientHeight / 2;
+    if (!bottom || Number.isNaN(bottom)) bottom = split.clientHeight / 2;
+    return { top, bottom };
+  }
+  function setState({ top, bottom }) {
+    root.style.setProperty('--proof-top', `${top}px`);
+    root.style.setProperty('--proof-bottom', `${bottom}px`);
+  }
+  function clamp(val, min, max) {
+    return Math.max(min, Math.min(max, val));
+  }
+
+  let startY = 0;
+  let startState = null;
+  function onMove(e) {
+    const dy = e.clientY - startY;
+    const total = split.clientHeight;
+    let top = clamp(startState.top + dy, minTop, total - minBottom);
+    let bottom = total - top;
+    if (bottom < minBottom) {
+      bottom = minBottom;
+      top = total - bottom;
+    }
+    setState({ top, bottom });
+  }
+  function onUp() {
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+  }
+  handle.addEventListener('mousedown', e => {
+    e.preventDefault();
+    startY = e.clientY;
+    startState = getState();
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
 }
 
 function extractLeanSnippet(fileText, anchor) {

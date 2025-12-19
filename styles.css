@@ -12,6 +12,13 @@
   --muted: #6a7283;
   --accent: #3b82f6;
   --border: rgba(255, 255, 255, 0.08);
+  --col-nav: 280px;
+  --col-paper: 760px;
+  --col-proof: 400px;
+  --divider: 6px;
+  --proof-top: 220px;
+  --proof-bottom: 220px;
+  --divider-row: 6px;
 }
 
 body {
@@ -82,9 +89,16 @@ body {
 
 .layout {
   display: grid;
-  grid-template-columns: minmax(240px, 0.8fr) minmax(320px, 1.5fr) minmax(260px, 0.9fr);
-  gap: 18px;
+  grid-template-columns:
+    minmax(var(--col-nav), 1fr)
+    var(--divider)
+    minmax(var(--col-paper), 2fr)
+    var(--divider)
+    minmax(var(--col-proof), 1.2fr);
+  gap: 0;
+  column-gap: 8px;
   padding: 18px 24px 28px;
+  align-items: stretch;
 }
 
 .nav-panel,
@@ -95,6 +109,22 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+.divider {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+}
+
+.divider-vertical {
+  width: var(--divider);
+  cursor: col-resize;
+  margin: 0 8px;
+}
+
+.divider-horizontal {
+  height: var(--divider-row);
+  cursor: row-resize;
 }
 
 .nav-panel {
@@ -255,18 +285,13 @@ body {
 
 .proof-split {
   display: grid;
-  grid-template-rows: 1fr 1fr;
+  grid-template-rows: var(--proof-top) var(--divider-row) var(--proof-bottom);
   height: 100%;
 }
 
 .proof-section {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding: 12px 16px;
   overflow: hidden;
-}
-
-.proof-section:first-child {
-  border-top: none;
 }
 
 .subheading {
