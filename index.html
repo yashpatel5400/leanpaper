@@ -84,8 +84,17 @@
             <div class="panel-subtitle">Click a citation or lemma/theorem to view its Lean formalization</div>
           </div>
         </div>
-        <div id="side-panel-body" class="proof-placeholder">
-          <p>Click a citation or lemma/theorem box to view its Lean formalization here.</p>
+        <div class="proof-split">
+          <div class="proof-section">
+            <div class="subheading">Lean code</div>
+            <div id="side-panel-body" class="proof-placeholder">
+              <p>Click a citation or lemma/theorem box to view its Lean formalization here.</p>
+            </div>
+          </div>
+          <div class="proof-section">
+            <div class="subheading">Lean server</div>
+            <div id="lean-output" class="lean-output muted">Lean server output will appear here.</div>
+          </div>
         </div>
       </aside>
     </main>

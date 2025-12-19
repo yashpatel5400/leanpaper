@@ -11,6 +11,7 @@ const PAPERS = [
   }
 ];
 const LATEX_ASSET_BASE = 'https://cdn.jsdelivr.net/npm/latex.js@0.12.6/dist/';
+const LEAN_SERVER_ENDPOINT = '/lean/check';
 
 let latexAssetsAttached = false;
 let currentPaperId = null;
@@ -538,12 +539,20 @@ function attachLemmaHandlers() {
     block.addEventListener('click', async () => {
       sidePanel.className = 'reference-detail';
       sidePanel.innerHTML = '<p class="muted">Loading Lean proof…</p>';
+      setLeanOutput('Checking with Lean server…', 'pending');
       try {
         const proofHtml = await loadLeanProof(label);
         sidePanel.innerHTML = proofHtml;
+        const source = PROOF_SOURCES[label];
+        if (source && source.path) {
+          runLeanCheck(source.path);
+        } else {
+          setLeanOutput('No Lean source configured for this item.', 'error');
+        }
       } catch (err) {
         sidePanel.innerHTML = `<p>Could not load Lean proof for ${label}: ${err.message}</p>`;
         sidePanel.className = 'proof-placeholder';
+        setLeanOutput(`Lean server unavailable: ${err.message}`, 'error');
       }
     });
   });
@@ -569,6 +578,37 @@ async function loadLeanProof(label) {
       <pre><code class="lean">${escapeHtml(snippet)}</code></pre>
     </div>
   `;
+}
+
+async function runLeanCheck(path) {
+  setLeanOutput('Checking with Lean server…', 'pending');
+  try {
+    const res = await fetch(`${LEAN_SERVER_ENDPOINT}?file=${encodeURIComponent(path)}`);
+    if (!res.ok) {
+      throw new Error(`server returned ${res.status}`);
+    }
+    const text = await res.text();
+    let message = text;
+    try {
+      const parsed = JSON.parse(text);
+      message = parsed.stdout || parsed.output || text;
+      if (parsed.stderr) {
+        message += `\n\nstderr:\n${parsed.stderr}`;
+      }
+    } catch (_) {
+      // not JSON
+    }
+    setLeanOutput(message || 'Lean check completed.', 'success');
+  } catch (err) {
+    setLeanOutput(`Lean server unavailable: ${err.message}`, 'error');
+  }
+}
+
+function setLeanOutput(text, state = '') {
+  const output = document.getElementById('lean-output');
+  if (!output) return;
+  output.textContent = text;
+  output.className = `lean-output${state ? ` ${state}` : ''}`;
 }
 
 function extractLeanSnippet(fileText, anchor) {
@@ -1136,12 +1176,17 @@ function selectPaper(paper) {
 function resetPanels() {
   const paperEl = document.getElementById('paper-content');
   const sidePanel = document.getElementById('side-panel-body');
+  const leanOutput = document.getElementById('lean-output');
   if (paperEl) {
     paperEl.innerHTML = '<p class="muted">Loading main paper…</p>';
   }
   if (sidePanel) {
     sidePanel.innerHTML = '';
     sidePanel.className = 'proof-placeholder';
+  }
+  if (leanOutput) {
+    leanOutput.textContent = 'Lean server output will appear here.';
+    leanOutput.className = 'lean-output muted';
   }
 }
 
