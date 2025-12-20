@@ -13,7 +13,7 @@ const PAPERS = [
 const LATEX_ASSET_BASE = 'https://cdn.jsdelivr.net/npm/latex.js@0.12.6/dist/';
 const LEAN_SERVER_ENDPOINT =
   (typeof window !== 'undefined' && window.LEAN_SERVER_ENDPOINT) ||
-  'http://localhost:3001/lean/check';
+  'https://kimina-lean-server.onrender.com/verify';
 
 let latexAssetsAttached = false;
 let currentPaperId = null;
@@ -604,40 +604,48 @@ async function loadLeanProof(label) {
 async function runLeanCheck(path, code) {
   setLeanOutput('Checking with Lean server…', 'pending');
   try {
-    const url = `${LEAN_SERVER_ENDPOINT}?file=${encodeURIComponent(path)}`;
-    const options = code
-      ? {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ file: path, code })
+    const url = `${LEAN_SERVER_ENDPOINT}`;
+    const needsMathlib = !code || !code.includes('import Mathlib');
+    const proof = needsMathlib ? `import Mathlib\n\n${code || ''}` : code;
+    const payload = {
+      codes: [
+        {
+          custom_id: path || 'main',
+          proof
         }
-      : undefined;
+      ],
+      infotree_type: 'original'
+    };
+    const options = {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    };
     const res = await fetch(url, options);
     if (!res.ok) {
       throw new Error(`server returned ${res.status}`);
     }
-    const text = await res.text();
-    let message = text;
-    try {
-      const parsed = JSON.parse(text);
-      const base = parsed.stdout || parsed.output || '';
-      const err = parsed.stderr || '';
-      const duration = parsed.durationMs ? `\n\nDuration: ${parsed.durationMs} ms` : '';
-      if (base.trim()) {
-        message = base;
-      } else if (err.trim()) {
-        message = err;
-      } else {
-        message = 'All goals completed!';
-      }
-      message += duration;
-    } catch (_) {
-      // not JSON
-    }
-    if (!message.trim()) {
+    const parsed = await res.json();
+    const result = parsed?.results && parsed.results[0];
+    const messages = result?.response?.messages || [];
+    const time = result?.response?.time;
+
+    let message = '';
+    if (messages.length) {
+      message = messages
+        .map(m => {
+          const pos = m.pos ? `(${m.pos.line}:${m.pos.column})` : '';
+          return `${m.severity || 'info'} ${pos} ${m.data || m.text || ''}`.trim();
+        })
+        .join('\n');
+    } else {
       message = 'All goals completed!';
     }
-    setLeanOutput(message, 'success');
+    if (time !== undefined) {
+      const t = typeof time === 'number' ? time.toFixed(3) : time;
+      message += `\nTime: ${t}s`;
+    }
+    setLeanOutput(message.trim(), 'success');
   } catch (err) {
     setLeanOutput(`Lean server unavailable: ${err.message}`, 'error');
   }
