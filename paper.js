@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const initial = resolveInitialPaper();
   renderPaperList(initial.id);
   loadPaper(initial);
-  setupResizers();
+  setupProofResizer();
   attachCompileHandler();
 });
 
@@ -736,7 +736,6 @@ function attachCompileHandler() {
 }
 
 function setupResizers() {
-  setupMainResizers();
   setupProofResizer();
 }
 
