@@ -39,7 +39,11 @@ theorem coverage_bound
     have hdiam : edist (C ω) c' ≤ EMetric.diam (U (X ω)) :=
       EMetric.edist_le_diam_of_mem hω hc'
     -- multiply both sides by L
-    exact mul_le_mul_right hdiam (L : ENNReal)
+    have hdiam' :
+        (L : ENNReal) * edist (C ω) c' ≤ (L : ENNReal) * EMetric.diam (U (X ω)) :=
+      mul_le_mul_left' hdiam (L : ENNReal)
+    -- use hdiam' to finish this branch
+    exact hdiam'
 
   -- now use monotonicity of measure + the given lower bound
   have hmono : volume (CoverEvent X C U) ≤ volume (BoundEvent w f U X C L) :=
