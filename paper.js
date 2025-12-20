@@ -1141,7 +1141,7 @@ function replaceAlgorithms(text, mode) {
       .replace(/\\caption\{[^}]*\}/g, '')
       .replace(/\\label\{[^}]*\}/g, '');
 
-    const steps = parseAlgorithmLines(body);
+    const steps = parseAlgorithmLines(body, mode);
 
     if (!steps.length && !caption) return '';
 
@@ -1172,7 +1172,7 @@ function convertLists(text, mode) {
     .replace(/\\begin\{enumerate\}([\s\S]*?)\\end\{enumerate\}/g, replacer);
 }
 
-function parseAlgorithmLines(body) {
+function parseAlgorithmLines(body, mode = 'latex') {
   const lines = body
     .split('\n')
     .map(line => line.trim())
@@ -1198,7 +1198,7 @@ function parseAlgorithmLines(body) {
     const parsed = transformAlgorithmLine(line);
     if (!parsed) return;
 
-    const styled = applyMarkdownStyleMarkers(convertTextStyles(parsed, 'latex'));
+    const styled = styleAlgorithmText(parsed, mode);
     const maybeIndented = !isFor && forDepth > 0 ? `<span class="algo-indent">${styled}</span>` : styled;
     output.push(maybeIndented);
 
@@ -1211,6 +1211,23 @@ function parseAlgorithmLines(body) {
     const plain = step.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, '').trim().toLowerCase();
     return plain && plain !== 'algorithm';
   });
+}
+
+function styleAlgorithmText(text, mode) {
+  // Protect math spans so style replacements don't break subscripts/superscripts.
+  const mathMatches = [];
+  const placeholder = (idx) => `@@MATH${idx}@@`;
+  let stripped = text.replace(/\$[^$]*\$/g, m => {
+    const idx = mathMatches.length;
+    mathMatches.push(m);
+    return placeholder(idx);
+  });
+
+  const styledRaw = convertTextStyles(stripped, mode === 'markdown' ? 'markdown' : 'latex');
+  const styled =
+    mode === 'markdown' ? applyMarkdownStyleMarkers(styledRaw) : styledRaw;
+
+  return styled.replace(/@@MATH(\d+)@@/g, (_m, idx) => mathMatches[Number(idx)] || '');
 }
 
 function transformAlgorithmLine(line) {
@@ -1234,7 +1251,9 @@ function transformAlgorithmLine(line) {
       return '';
     }
     if (cmdLower === 'for') {
-      return `For ${content}${rest ? ` ${rest}` : ''}`;
+      // Avoid duplicating content when no brace argument is present.
+      const text = braceContent ? braceContent : rest;
+      return `For ${text}`;
     }
     if (cmdLower === 'statex') {
       return content || rest;
