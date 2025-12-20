@@ -948,7 +948,7 @@ function formatRefLabel(label, eqNumbers = {}) {
   const remainder = parts.slice(1).join(':');
 
   if (prefix === 'section') {
-    return `Section ${humanizeLabel(remainder)}`;
+    return `Section: ${humanizeLabel(remainder)}`;
   }
   if (prefix === 'lemma') {
     return `Lemma: ${humanizeLabel(remainder)}`;
