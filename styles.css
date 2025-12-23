@@ -137,6 +137,7 @@ body {
   background: var(--panel);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.04);
   border: 1px solid var(--border);
+  overflow-y: auto;
 }
 
 .proof-panel {
@@ -170,7 +171,7 @@ body {
 
 .paper-content {
   padding: 0 24px 28px;
-  overflow-y: auto;
+  overflow-y: visible;
   flex: 1 1 auto;
   width: 100%;
   max-width: 80%;
@@ -331,7 +332,7 @@ body {
 
 .subheading {
   font-weight: 700;
-  color: #dbe4f3;
+  color: #2d241a;
   margin-bottom: 6px;
 }
 
