@@ -757,16 +757,16 @@ body {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #e7ecf7;
+  background: #f2ecdf;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: #2d241a;
   text-decoration: none;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
 .icon-link:hover {
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.18);
+  background: #e8dfcb;
+  border-color: rgba(196, 122, 31, 0.35);
   transform: translateY(-1px);
 }
 
